@@ -328,6 +328,18 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.year, 2023)
     }
 
+    func testKeychainSetReportsStatusAndRoundTrips() throws {
+        let account = "secretary.test.\(UUID().uuidString)"
+        defer { Keychain.delete(account: account) }
+        do {
+            try Keychain.set("am_test_key_123", account: account)
+            XCTAssertEqual(Keychain.get(account: account), "am_test_key_123")
+        } catch let KeychainError.status(code) {
+            XCTAssertNotEqual(code, errSecSuccess, "Keychain.set must surface a real OSStatus, got \(code)")
+        }
+        XCTAssertTrue(KeychainError.status(-34018).localizedDescription.contains("-34018"))
+    }
+
     func testDetailSplitUsesMinimaAndPersistedWidth() {
         XCTAssertEqual(DetailSplitLayout.metaMinWidth, 280)
         XCTAssertEqual(DetailSplitLayout.previewMinWidth, 360)

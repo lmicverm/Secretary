@@ -183,7 +183,7 @@ public final class LibraryStore: ObservableObject {
 
     public func setupMailbox(apiKey: String, username: String) async {
         do {
-            MailboxSettings.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            try MailboxSettings.storeAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
             let client = AgentMailClient(apiKey: MailboxSettings.apiKey!)
             // Reuse existing inbox if listed
             let existing = try await client.listInboxes()

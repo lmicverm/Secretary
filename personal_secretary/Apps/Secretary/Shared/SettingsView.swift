@@ -2,6 +2,8 @@ import SecretaryCore
 import SwiftUI
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 enum SettingsTab: String, Hashable {
@@ -25,6 +27,7 @@ struct SettingsView: View {
     @State private var mailboxError: String?
     @State private var mailboxSuccess: String?
     @State private var isFetchingMail = false
+    @State private var keyIsStored = MailboxSettings.apiKey != nil
 
     init(initialTab: SettingsTab = .library) {
         self.initialTab = initialTab
@@ -44,7 +47,7 @@ struct SettingsView: View {
                 .tag(SettingsTab.mailbox)
         }
         #if os(macOS)
-        .frame(minWidth: 520, minHeight: 560)
+        .frame(minWidth: 540, minHeight: 640)
         #endif
         .tint(SecretaryTheme.accent)
         .onAppear { applyPendingTab() }
@@ -230,54 +233,54 @@ struct SettingsView: View {
                     Toggle("Show key", isOn: $showAPIKey)
                         .font(SecretaryTheme.Typography.caption)
                         .toggleStyle(.switch)
-                    #if os(macOS)
                     Button("Paste") {
-                        if let pasted = NSPasteboard.general.string(forType: .string) {
-                            apiKey = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
+                        pasteAPIKey()
                     }
                     .buttonStyle(.bordered)
                     .font(SecretaryTheme.Typography.caption)
-                    #endif
                 }
-                
+
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Button {
+                        saveAPIKey()
+                    } label: {
+                        Label("Save key", systemImage: "checkmark")
+                            .font(SecretaryTheme.Typography.captionMedium)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SecretaryTheme.accent)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if keyIsStored {
+                        Button(role: .destructive) {
+                            clearAPIKey()
+                        } label: {
+                            Label("Clear", systemImage: "xmark")
+                                .font(SecretaryTheme.Typography.captionMedium)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
                 if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     HStack(spacing: SecretaryTheme.spacingSM) {
                         Image(systemName: "key")
                             .foregroundStyle(SecretaryTheme.accent)
-                        Text("Get an API key at agentmail.to")
+                        Text("Get an API key at agentmail.to, then Paste and Save.")
                     }
                     .font(SecretaryTheme.Typography.caption)
                     .foregroundStyle(SecretaryTheme.textTertiary)
-                } else {
-                    HStack(spacing: SecretaryTheme.spacingSM) {
-                        Button {
-                            saveAPIKey()
-                        } label: {
-                            Label("Save key", systemImage: "checkmark")
-                                .font(SecretaryTheme.Typography.captionMedium)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(SecretaryTheme.accent)
-                        .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        
-                        if MailboxSettings.apiKey != nil {
-                            Button(role: .destructive) {
-                                clearAPIKey()
-                            } label: {
-                                Label("Clear", systemImage: "xmark")
-                                    .font(SecretaryTheme.Typography.captionMedium)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
+                } else if keyIsStored {
+                    Text("Key is stored in the Keychain.")
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.success)
                 }
             } header: {
                 Text("API Key")
             }
             
             Section {
-                if MailboxSettings.apiKey == nil {
+                if !keyIsStored {
                     HStack(spacing: SecretaryTheme.spacingSM) {
                         Image(systemName: "info.circle")
                             .foregroundStyle(SecretaryTheme.textTertiary)
@@ -462,7 +465,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(SecretaryTheme.spacingSM)
         .onAppear {
-            if MailboxSettings.apiKey != nil && availableInboxes.isEmpty {
+            if keyIsStored && availableInboxes.isEmpty {
                 Task { await loadInboxes() }
             }
         }
@@ -482,21 +485,43 @@ struct SettingsView: View {
         .font(SecretaryTheme.Typography.caption)
     }
     
+    private func pasteAPIKey() {
+        #if os(macOS)
+        let pasted = NSPasteboard.general.string(forType: .string)
+        #else
+        let pasted = UIPasteboard.general.string
+        #endif
+        guard let pasted else { return }
+        apiKey = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        showAPIKey = true
+    }
+
     private func saveAPIKey() {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        MailboxSettings.apiKey = trimmed
-        mailboxError = nil
-        mailboxSuccess = "API key saved securely"
-        store.refreshMailboxStatus()
-        Task { await loadInboxes() }
+        do {
+            try MailboxSettings.storeAPIKey(trimmed)
+            guard MailboxSettings.apiKey == trimmed else {
+                throw KeychainError.roundTripFailed
+            }
+            keyIsStored = true
+            mailboxError = nil
+            mailboxSuccess = "API key saved and verified in Keychain"
+            store.refreshMailboxStatus()
+            Task { await loadInboxes() }
+        } catch {
+            keyIsStored = MailboxSettings.apiKey != nil
+            mailboxSuccess = nil
+            mailboxError = error.localizedDescription
+        }
     }
     
     private func clearAPIKey() {
-        MailboxSettings.apiKey = nil
+        MailboxSettings.clearAPIKey()
         MailboxSettings.inboxId = nil
         MailboxSettings.inboxEmail = nil
         apiKey = ""
+        keyIsStored = false
         availableInboxes = []
         selectedInboxId = ""
         mailboxError = nil
