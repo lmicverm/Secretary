@@ -117,6 +117,43 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: library.fileURL(for: record).path))
     }
 
+    func testDocumentPreviewPolicyAvoidsLivePDFViewOnIOSAppOnMac() {
+        XCTAssertEqual(
+            DocumentPreviewPolicy.kind(pathExtension: "pdf", isReadable: true, isIOSAppOnMac: false),
+            .livePDFView
+        )
+        XCTAssertEqual(
+            DocumentPreviewPolicy.kind(pathExtension: "PDF", isReadable: true, isIOSAppOnMac: true),
+            .softwarePDFPage
+        )
+        XCTAssertEqual(
+            DocumentPreviewPolicy.kind(pathExtension: "png", isReadable: true, isIOSAppOnMac: true),
+            .rasterImage
+        )
+        XCTAssertEqual(
+            DocumentPreviewPolicy.kind(pathExtension: "pdf", isReadable: false, isIOSAppOnMac: false),
+            .missingFile
+        )
+        XCTAssertEqual(
+            DocumentPreviewPolicy.kind(pathExtension: "docx", isReadable: true, isIOSAppOnMac: false),
+            .unsupported
+        )
+    }
+
+    func testDocumentPreviewPolicyReadableFile() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryPreview-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let missing = dir.appendingPathComponent("gone.pdf")
+        XCTAssertFalse(DocumentPreviewPolicy.isReadableFile(at: missing))
+
+        let file = dir.appendingPathComponent("page.pdf")
+        try Data("%PDF-1.4\n").write(to: file)
+        XCTAssertTrue(DocumentPreviewPolicy.isReadableFile(at: file))
+        XCTAssertFalse(DocumentPreviewPolicy.isReadableFile(at: dir))
+    }
+
     func testParsePath() {
         let inbox = FolderSchema.parsePath("Inbox/foo.pdf")
         XCTAssertTrue(inbox.isInbox)

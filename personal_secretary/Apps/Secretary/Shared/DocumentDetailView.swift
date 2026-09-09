@@ -1,3 +1,4 @@
+import CoreGraphics
 import PDFKit
 import SecretaryCore
 import SwiftUI
@@ -68,6 +69,14 @@ struct DocumentDetailView: View {
     var body: some View {
         DetailPage {
             VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+                #if os(iOS)
+                if ProcessInfo.processInfo.isiOSAppOnMac {
+                    StatusBanner(
+                        message: "This is the iOS app on Mac. For daily desktop use, run scheme SecretaryMac — not “My Mac (Designed for iPad)”.",
+                        style: .error
+                    )
+                }
+                #endif
                 header
                 if isClassifying {
                     classifyPanel
@@ -379,7 +388,16 @@ struct DocumentDetailView: View {
                     RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous)
                         .strokeBorder(SecretaryTheme.stroke, lineWidth: 1)
                 )
+        } else {
+            missingFilePanel(message: "The library is not ready, so this document has no file URL.")
         }
+    }
+
+    private func missingFilePanel(message: String) -> some View {
+        SecretaryPanel(tint: SecretaryTheme.warnSoft, stroke: SecretaryTheme.warn.opacity(0.15)) {
+            StatusBanner(message: message, style: .error)
+        }
+        .frame(minHeight: 120)
     }
 
     private var metadataForm: some View {
@@ -697,30 +715,75 @@ struct DocumentPreview: View {
     let url: URL
 
     var body: some View {
-        let ext = url.pathExtension.lowercased()
-        if ext == "pdf" {
+        switch DocumentPreviewPolicy.kind(
+            pathExtension: url.pathExtension,
+            isReadable: DocumentPreviewPolicy.isReadableFile(at: url),
+            isIOSAppOnMac: runningIOSAppOnMac
+        ) {
+        case .missingFile:
+            missingFile
+        case .livePDFView:
             PDFKitRepresentedView(url: url)
-        } else if ["png", "jpg", "jpeg", "heic", "tif", "tiff"].contains(ext) {
-            #if os(macOS)
-            if let image = NSImage(contentsOf: url) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                placeholder
-            }
-            #else
-            if let image = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                placeholder
-            }
-            #endif
+        case .softwarePDFPage:
+            softwarePDFPage
+        case .rasterImage:
+            imagePreview
+        case .unsupported:
+            placeholder
+        }
+    }
+
+    private var runningIOSAppOnMac: Bool {
+        #if os(iOS)
+        ProcessInfo.processInfo.isiOSAppOnMac
+        #else
+        false
+        #endif
+    }
+
+    private var missingFile: some View {
+        EmptyStateView(
+            icon: "exclamationmark.triangle",
+            title: "File missing on disk",
+            description: "This item is still in the index, but the file is not readable here. It may be evicted from iCloud or moved outside the library."
+        )
+        .frame(minHeight: 180)
+    }
+
+    @ViewBuilder
+    private var softwarePDFPage: some View {
+        #if os(iOS)
+        if let image = softwarePDFPageImage(url: url) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
         } else {
             placeholder
         }
+        #else
+        PDFKitRepresentedView(url: url)
+        #endif
+    }
+
+    @ViewBuilder
+    private var imagePreview: some View {
+        #if os(macOS)
+        if let image = NSImage(contentsOf: url) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+        } else {
+            placeholder
+        }
+        #else
+        if let image = UIImage(contentsOfFile: url.path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+        } else {
+            placeholder
+        }
+        #endif
     }
 
     private var placeholder: some View {
@@ -729,16 +792,58 @@ struct DocumentPreview: View {
     }
 }
 
+#if os(iOS)
+/// CPU raster of page 1 — no PDFView / Metal. Used when the iOS app runs on a Mac.
+private func softwarePDFPageImage(url: URL, maxDimension: CGFloat = 900) -> UIImage? {
+    guard let provider = CGDataProvider(url: url as CFURL),
+          let document = CGPDFDocument(provider),
+          let page = document.page(at: 1) else {
+        return nil
+    }
+    let box = page.getBoxRect(.mediaBox)
+    guard box.width >= 1, box.height >= 1 else { return nil }
+    let scale = min(maxDimension / box.width, maxDimension / box.height, 2)
+    let width = Int((box.width * scale).rounded(.down))
+    let height = Int((box.height * scale).rounded(.down))
+    guard width >= 1, height >= 1 else { return nil }
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    guard let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        return nil
+    }
+    context.setFillColor(gray: 1, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    context.translateBy(x: 0, y: CGFloat(height))
+    context.scaleBy(x: scale, y: -scale)
+    context.drawPDFPage(page)
+    guard let cgImage = context.makeImage() else { return nil }
+    return UIImage(cgImage: cgImage)
+}
+#endif
+
 #if os(macOS)
 struct PDFKitRepresentedView: NSViewRepresentable {
     let url: URL
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
-        view.document = PDFDocument(url: url)
+        if DocumentPreviewPolicy.isReadableFile(at: url) {
+            view.document = PDFDocument(url: url)
+        }
         return view
     }
     func updateNSView(_ nsView: PDFView, context: Context) {
+        guard DocumentPreviewPolicy.isReadableFile(at: url) else {
+            nsView.document = nil
+            return
+        }
         if nsView.document?.documentURL != url {
             nsView.document = PDFDocument(url: url)
         }
@@ -750,10 +855,16 @@ struct PDFKitRepresentedView: UIViewRepresentable {
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
-        view.document = PDFDocument(url: url)
+        if DocumentPreviewPolicy.isReadableFile(at: url) {
+            view.document = PDFDocument(url: url)
+        }
         return view
     }
     func updateUIView(_ uiView: PDFView, context: Context) {
+        guard DocumentPreviewPolicy.isReadableFile(at: url) else {
+            uiView.document = nil
+            return
+        }
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
         }

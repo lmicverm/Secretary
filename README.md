@@ -6,6 +6,8 @@ Documents live as real files in a Finder/Files-visible folder tree. Classificati
 
 ## Getting Started
 
+On a Mac, run scheme **SecretaryMac** (destination **My Mac**). The **Secretary** scheme is the iOS app — use it on an iPhone or Simulator only. **Do not** choose `Secretary` → **My Mac (Designed for iPad)**; that is a scaled iPad binary, not the desktop app, and can abort under Metal API Validation when you click a document.
+
 See [`personal_secretary/README.md`](personal_secretary/README.md) for:
 
 - Requirements (Xcode, Apple ID, iCloud container)

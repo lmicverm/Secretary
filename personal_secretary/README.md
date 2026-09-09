@@ -15,7 +15,16 @@ Documents live as a real folder tree (Finder / Files). Classification *is* the p
 1. Open [`Secretary.xcodeproj`](Secretary.xcodeproj) in Xcode.
 2. Select your **Team** on targets `Secretary`, `SecretaryMac`, and `ShareExtension`.
 3. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/), create the iCloud container `iCloud.be.vermeir.secretary` (or change the ID in entitlements + `LibraryLocation.swift` to match yours).
-4. Run **SecretaryMac** on your Mac, or **Secretary** on an iPhone/simulator.
+4. Pick the scheme that matches the device:
+
+| What you want | Scheme | Destination |
+|---|---|---|
+| Daily Mac desktop app | **SecretaryMac** | My Mac |
+| iPhone / iPad | **Secretary** | a physical device or Simulator |
+
+**Do not run `Secretary` → My Mac (Designed for iPad).** That destination is an iOS/iPadOS binary scaled onto the Mac. It looks zoomed and blurry, and Debug + Metal API Validation can abort when you open a document (`synchronizeResource` / `MTLResourceStorageModeShared`). The iOS target now sets `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO` so that destination should not appear. If an old Xcode window still offers it, switch to **SecretaryMac**.
+
+If you must debug the iOS app on a Mac anyway, turn off **Scheme → Run → Diagnostics → Metal API Validation** — that only hides the assert; it is not the desktop app.
 
 Core library smoke checks (no Xcode.app required if Command Line Tools can build):
 
