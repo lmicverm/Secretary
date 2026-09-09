@@ -63,14 +63,17 @@ public struct StructuredDocumentFields: Equatable, Sendable {
 /// and the OS is new enough, `extractAsync` may try that API; otherwise we
 /// always fall back to the heuristic extractor below.
 public enum DocumentUnderstanding {
-    /// `true` only when the Foundation Models module is present in the SDK.
-    /// The current deployment target is macOS 14 / iOS 17, so this is false in shipping builds.
+    /// `true` when the SDK links Foundation Models *and* the OS is new enough
+    /// (Apple Intelligence / Foundation Models: macOS 26 / iOS 26).
+    /// Uses a runtime major-version check so Xcode 15 (`#available` up through
+    /// macOS 15 / iOS 18) still compiles.
     public static var foundationModelsAvailable: Bool {
         #if canImport(FoundationModels)
-        true
-        #else
-        false
+        if #available(macOS 15.0, iOS 18.0, *) {
+            return ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+        }
         #endif
+        return false
     }
 
     public static func looksLikeInvoice(

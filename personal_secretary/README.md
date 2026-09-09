@@ -91,6 +91,13 @@ Files on disk are the source of truth. Use **Rebuild Index** if the database eve
 
 ## Document understanding
 
-Classify uses an **on-device heuristic extractor** (filename + OCR, NaturalLanguage when present, Belgian invoice/tax patterns). It fills a clean title, document type, tags, optional amount / dates / correspondent. The filed name is always `YYYY-MM-DD__type__{slug(title)}.ext` from that cleaned title — never raw OCR tokens.
+On-device only. **No cloud LLM** (unless you later opt in).
 
-**Apple Foundation Models** (Apple Intelligence) are *not* on the current deployment target (macOS 14 / iOS 17). `DocumentUnderstanding.extractAsync` will call them behind `#if canImport(FoundationModels)` + `#available` when the OS/SDK actually ships the API; until a deployment bump, the heuristic path is what runs, including Personal Team Debug builds. No cloud LLM is required.
+| Path | When it runs | What it does |
+|---|---|---|
+| **Heuristic** (default) | macOS 14 / iOS 17+ (current deployment, including Personal Team Debug) | Filename + OCR, NaturalLanguage names, Belgian invoice/tax patterns → title, type, tags, optional amount / dates / correspondent |
+| **Foundation Models** (Apple Intelligence) | App built with an SDK that has `FoundationModels` **and** OS **macOS 26 / iOS 26+** | `extractAsync` tries the on-device model first, then falls back to heuristics. The classify/filename path stays sync-heuristic so Move never blocks on a model. |
+
+Classify always writes `YYYY-MM-DD__type__{slug(cleaned title)}.ext` from the cleaned title — never raw OCR tokens (`PfO6D4aa`, `import`, …).
+
+**TODO when raising the deployment target:** implement `DocumentUnderstanding.extractWithFoundationModels` with `LanguageModelSession` + a `@Generable` schema. Keep the heuristic fallback. Weak-link via `#if canImport(FoundationModels)`; `foundationModelsAvailable` already checks OS major version ≥ 26.
