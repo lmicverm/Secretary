@@ -617,6 +617,8 @@ def main() -> None:
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			}};
@@ -645,6 +647,8 @@ def main() -> None:
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -730,6 +734,8 @@ def main() -> None:
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			}};
@@ -756,6 +762,8 @@ def main() -> None:
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -847,16 +855,79 @@ def main() -> None:
 """
     )
     write_scheme("SecretaryMac", IDS["target_mac"], "SecretaryMac.app")
-    write_scheme("Secretary", IDS["target_ios"], "Secretary.app")
+    write_scheme(
+        "Secretary",
+        IDS["target_ios"],
+        "Secretary.app",
+        comment=(
+            "iOS scheme: iPhone or Simulator only. Daily desktop use is "
+            "SecretaryMac — not My Mac (Designed for iPad)."
+        ),
+    )
+    write_scheme_management()
     print(f"Wrote {PROJECT}")
 
 
-def write_scheme(name: str, target_id: str, product: str) -> None:
+def write_scheme_management() -> None:
+    """Prefer SecretaryMac in the scheme menu. iOS is iPhone/simulator only."""
     schemes = PROJECT / "xcshareddata" / "xcschemes"
     schemes.mkdir(parents=True, exist_ok=True)
+    (schemes / "xcschememanagement.plist").write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SchemeUserState</key>
+	<dict>
+		<key>SecretaryMac.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>0</integer>
+		</dict>
+		<key>Secretary.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+</dict>
+</plist>
+"""
+    )
+    workspace_shared = PROJECT / "project.xcworkspace" / "xcshareddata"
+    workspace_shared.mkdir(parents=True, exist_ok=True)
+    (workspace_shared / "xcschememanagement.plist").write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SchemeUserState</key>
+	<dict>
+		<key>SecretaryMac.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>0</integer>
+		</dict>
+		<key>Secretary.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+</dict>
+</plist>
+"""
+    )
+
+
+def write_scheme(name: str, target_id: str, product: str, comment: str | None = None) -> None:
+    schemes = PROJECT / "xcshareddata" / "xcschemes"
+    schemes.mkdir(parents=True, exist_ok=True)
+    header = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    if comment:
+        header += f"<!--\n  {comment}\n-->\n"
     (schemes / f"{name}.xcscheme").write_text(
-        f"""<?xml version="1.0" encoding="UTF-8"?>
-<Scheme
+        f"""{header}<Scheme
    LastUpgradeVersion = "1600"
    version = "1.7">
    <BuildAction parallelizeBuildables = "YES" buildImplicitDependencies = "YES">

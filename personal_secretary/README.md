@@ -15,25 +15,18 @@ Documents live as a real folder tree (Finder / Files). Classification *is* the p
 Use the **SecretaryMac** scheme. Do **not** run the iOS **Secretary** scheme as “Designed for iPad” on the Mac — that path is a different target and still expects device/iCloud signing.
 
 1. Open [`Secretary.xcodeproj`](Secretary.xcodeproj) in Xcode.
-2. In the scheme menu, choose **SecretaryMac** (not **Secretary**).
-3. Select the **SecretaryMac** target → **Signing & Capabilities**.
-4. Set **Team** to your **Personal Team** (free Apple ID).
-5. Leave the configuration as **Debug** (the default for Run). Debug uses [`Secretary-macOS-Debug.entitlements`](Apps/Secretary/Resources/Secretary-macOS-Debug.entitlements): sandbox + file/network access, **no iCloud**. Xcode can then create a Mac development profile.
-6. Run (⌘R). The library lives under Application Support (`~/Library/Application Support/Secretary`) unless you pick a custom folder in Settings.
+2. Select your **Team** on targets `Secretary`, `SecretaryMac`, and `ShareExtension`.
+3. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/), create the iCloud container `iCloud.be.vermeir.secretary` (or change the ID in entitlements + `LibraryLocation.swift` to match yours).
+4. Pick the scheme that matches the device:
 
-Personal Team = **local library only**. iCloud Drive is not available on a free team.
+| What you want | Scheme | Destination |
+|---|---|---|
+| Daily Mac desktop app | **SecretaryMac** | My Mac |
+| iPhone / iPad | **Secretary** | a physical device or Simulator |
 
-## iCloud (paid Apple Developer team)
+**Do not run `Secretary` → My Mac (Designed for iPad).** That destination is an iOS/iPadOS binary scaled onto the Mac. It looks zoomed and blurry, and Debug + Metal API Validation can abort when you open a document (`synchronizeResource` / `MTLResourceStorageModeShared`). The iOS target now sets `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO` so that destination should not appear. If an old Xcode window still offers it, switch to **SecretaryMac**.
 
-Release builds of SecretaryMac keep iCloud via [`Secretary-macOS.entitlements`](Apps/Secretary/Resources/Secretary-macOS.entitlements).
-
-1. Join the [Apple Developer Program](https://developer.apple.com/programs/).
-2. Set **Team** on `Secretary`, `SecretaryMac`, and `ShareExtension` to that paid team.
-3. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/), create the iCloud container `iCloud.be.vermeir.secretary` (or change the ID in the Release/iOS entitlements + `LibraryLocation.swift` to match yours).
-4. For a Mac Release build, confirm **SecretaryMac** → **Release** still uses `Secretary-macOS.entitlements` (iCloud Cloud Documents + ubiquity container).
-5. Run **SecretaryMac** (Release) on Mac, or **Secretary** on an iPhone.
-
-The app already falls back to Application Support when the iCloud container is missing or unsigned — Debug Personal Team uses that path.
+If you must debug the iOS app on a Mac anyway, turn off **Scheme → Run → Diagnostics → Metal API Validation** — that only hides the assert; it is not the desktop app.
 
 Core library smoke checks (no Xcode.app required if Command Line Tools can build):
 
