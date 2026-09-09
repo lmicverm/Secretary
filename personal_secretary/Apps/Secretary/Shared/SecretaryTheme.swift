@@ -1,3 +1,4 @@
+import SecretaryCore
 import SwiftUI
 
 /// Quiet ink-on-paper look for a personal archive.
@@ -45,6 +46,12 @@ enum SecretaryTheme {
     // MARK: - Layout
     
     static let sidebarWidth: CGFloat = 220
+    #if os(macOS)
+    static let listWidth: CGFloat = 340
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.macSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
+    #else
     static let listWidth: CGFloat = 320
     /// Readable form width on iOS stacked detail.
     static let detailContentMax: CGFloat = 680
@@ -150,17 +157,36 @@ struct DetailPage<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ScrollView {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                content()
-                    .frame(maxWidth: SecretaryTheme.detailContentMax, alignment: .leading)
-                    .padding(.horizontal, SecretaryTheme.pagePadding)
-                    .padding(.vertical, SecretaryTheme.spacingXL)
-                Spacer(minLength: 0)
+        GeometryReader { geo in
+            let metrics = Self.metrics(for: geo.size)
+            ScrollView {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    content()
+                        .frame(maxWidth: metrics.contentWidth, alignment: .leading)
+                        .padding(.horizontal, SecretaryTheme.pagePadding)
+                        .padding(.vertical, SecretaryTheme.spacingXL)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private static func metrics(for size: CGSize) -> DetailLayoutMetrics {
+        #if os(macOS)
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: true
+        )
+        #else
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: false
+        )
+        #endif
     }
 }
 
