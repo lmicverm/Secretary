@@ -463,7 +463,7 @@ struct DocumentDetailView: View {
 
     private var extrasMenu: some View {
         Menu {
-            Button("Ignore this file") {
+            Button("Ignore this file", role: .destructive) {
                 store.removeFromLibrary(liveDocument)
             }
             Button("Show extracted text") {

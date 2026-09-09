@@ -63,14 +63,14 @@ public struct StructuredDocumentFields: Equatable, Sendable {
 /// and the OS is new enough, `extractAsync` may try that API; otherwise we
 /// always fall back to the heuristic extractor below.
 public enum DocumentUnderstanding {
-    /// `true` only when the Foundation Models framework is linked *and* the OS is new enough.
+    /// `true` only when the Foundation Models module is present in the SDK.
+    /// The current deployment target is macOS 14 / iOS 17, so this is false in shipping builds.
     public static var foundationModelsAvailable: Bool {
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, iOS 26.0, *) {
-            return true
-        }
+        true
+        #else
+        false
         #endif
-        return false
     }
 
     public static func looksLikeInvoice(
@@ -171,10 +171,8 @@ public enum DocumentUnderstanding {
             preferredTags: preferredTags
         )
         #if canImport(FoundationModels)
-        if #available(macOS 26.0, iOS 26.0, *) {
-            if let enriched = await extractWithFoundationModels(from: document, fallback: fallback) {
-                return enriched
-            }
+        if let enriched = await extractWithFoundationModels(from: document, fallback: fallback) {
+            return enriched
         }
         #endif
         return fallback
@@ -306,9 +304,9 @@ public enum DocumentUnderstanding {
     }
 
     #if canImport(FoundationModels)
-    /// TODO: Call `LanguageModelSession` + a `@Generable` schema once deployment is macOS 26 / iOS 26.
-    /// Returning `nil` keeps Personal Team / macOS 14 builds on the heuristic path.
-    @available(macOS 26.0, iOS 26.0, *)
+    /// TODO: Call `LanguageModelSession` + a `@Generable` schema once deployment is raised
+    /// to an OS that ships Foundation Models. Returning `nil` keeps macOS 14 / Personal Team
+    /// on the heuristic path even if a newer SDK can import the module.
     static func extractWithFoundationModels(
         from document: DocumentRecord,
         fallback: StructuredDocumentFields
