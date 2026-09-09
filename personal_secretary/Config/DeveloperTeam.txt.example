@@ -1,0 +1,4 @@
+# Put your 10-character Apple Development Team ID on the first line, then:
+#   python3 Scripts/generate_xcodeproj.py
+# Find it in Xcode → Settings → Accounts → Team, or Membership details.
+XXXXXXXXXX

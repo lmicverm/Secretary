@@ -1,0 +1,668 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		07662171DC6A476FA6E036BE /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EFF24778BC46FEB025F237 /* LibraryStore.swift */; };
+		0818C1E2137F4025992C9587 /* DocumentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39112588E2694E018F726B9E /* DocumentListView.swift */; };
+		1548D55167D74A5C885CA2EA /* DocumentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39112588E2694E018F726B9E /* DocumentListView.swift */; };
+		186E51297CD24773A3B499A0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */; };
+		1F66269D01DB411AA13817B2 /* SecretaryCore in Frameworks */ = {isa = PBXBuildFile; productRef = A6BF77FA1D8BC3732462C2D3 /* SecretaryCore */; };
+		20AAC3ABA8244169A1042F68 /* SecretaryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DC5963E139F496793A93600 /* SecretaryApp.swift */; };
+		23A9876FE5ED4C70828DE61A /* LibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24EFF24778BC46FEB025F237 /* LibraryStore.swift */; };
+		2733FDC9AA944BA9924C496B /* SecretaryCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3E1C64E833F692E1404ED95E /* SecretaryCore */; };
+		2B87A6AC15414C6B9B2DE8B4 /* DocumentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F16B90A5824D38961DAA9C /* DocumentDetailView.swift */; };
+		38DA8E4ED03A40DD912C2C84 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC19834F90DC4FD3AC9D88F6 /* Assets.xcassets */; };
+		3AE876D6C32E457BB6D5E24E /* SecretaryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DC5963E139F496793A93600 /* SecretaryApp.swift */; };
+		5435844171BC4CC49CD8655A /* SecretaryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */; };
+		5B82A2250D5844109CB5B518 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14CB4BB7C1DB4E4583B2E545 /* RootView.swift */; };
+		89664A735D254FBAA52785F0 /* ImportToolbarButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7FE39B5B1A4787ADCA8635 /* ImportToolbarButtons.swift */; };
+		9DCA9DDEE53D456AB4F7B54D /* SecretaryCore in Frameworks */ = {isa = PBXBuildFile; productRef = A979055B128E7A0EB579C9B1 /* SecretaryCore */; };
+		A6C47F0D2D304E80BD0C1AC6 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14CB4BB7C1DB4E4583B2E545 /* RootView.swift */; };
+		ACECEC58C82E4D8284EFF4B3 /* DocumentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F16B90A5824D38961DAA9C /* DocumentDetailView.swift */; };
+		B236F0E53E7D4A83A1E59227 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC19834F90DC4FD3AC9D88F6 /* Assets.xcassets */; };
+		D15D5987E5894203869A6BFE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */; };
+		D9CEEEF57AAB4B0A9BF90157 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CCDAD156924F04BFB6D55E /* ShareViewController.swift */; };
+		F6B3FDF51EE5470B9C0C6819 /* SecretaryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0DC5963E139F496793A93600 /* SecretaryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretaryApp.swift; sourceTree = "<group>"; };
+		14CB4BB7C1DB4E4583B2E545 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		1E1B90251D5944C1B1458268 /* Info-iOS.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-iOS.plist"; sourceTree = "<group>"; };
+		24EFF24778BC46FEB025F237 /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
+		30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		357030A444924A0A8D080E3C /* Secretary-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Secretary-macOS.entitlements"; sourceTree = "<group>"; };
+		39112588E2694E018F726B9E /* DocumentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentListView.swift; sourceTree = "<group>"; };
+		3ACD51EA5667EBBA92234F76 /* SecretaryMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SecretaryMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		42825A382B294B45AE6BAB33 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		52CCDAD156924F04BFB6D55E /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		5833D267B5D6FFA4342047E6 /* Secretary.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Secretary.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		690A009505A546AD91914D33 /* Info-macOS.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-macOS.plist"; sourceTree = "<group>"; };
+		6F7FE39B5B1A4787ADCA8635 /* ImportToolbarButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportToolbarButtons.swift; sourceTree = "<group>"; };
+		71F16B90A5824D38961DAA9C /* DocumentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentDetailView.swift; sourceTree = "<group>"; };
+		803BA15B0A034FB7A65F353E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		90D2C9E7E22B041B11E81BE3 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C5108242A0341C2AF670759 /* Secretary.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Secretary.entitlements; sourceTree = "<group>"; };
+		BC19834F90DC4FD3AC9D88F6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretaryTheme.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9103E1D18AFE345A67E9C0FC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2733FDC9AA944BA9924C496B /* SecretaryCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ED51384ED10E06158D8D354B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F66269D01DB411AA13817B2 /* SecretaryCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EE3EFB958C25F4BB87163D9D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9DCA9DDEE53D456AB4F7B54D /* SecretaryCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		033E51A4E34FAE06AE290DB0 /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				52CCDAD156924F04BFB6D55E /* ShareViewController.swift */,
+				803BA15B0A034FB7A65F353E /* Info.plist */,
+				42825A382B294B45AE6BAB33 /* ShareExtension.entitlements */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		13722DC4DA3E6F734ED1E8FA /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				0DC5963E139F496793A93600 /* SecretaryApp.swift */,
+				24EFF24778BC46FEB025F237 /* LibraryStore.swift */,
+				14CB4BB7C1DB4E4583B2E545 /* RootView.swift */,
+				39112588E2694E018F726B9E /* DocumentListView.swift */,
+				71F16B90A5824D38961DAA9C /* DocumentDetailView.swift */,
+				30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */,
+				D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		28ABC6A7315B07473876BC50 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		36CF5BC9579BC9F9FB346723 /* Secretary */ = {
+			isa = PBXGroup;
+			children = (
+				13722DC4DA3E6F734ED1E8FA /* Shared */,
+				76CD5313991DED31866F77D8 /* iOS */,
+				DC202A706803B7801A890D28 /* Resources */,
+			);
+			path = Secretary;
+			sourceTree = "<group>";
+		};
+		6D48EAC9CE227FAE1EB447B5 /* Apps */ = {
+			isa = PBXGroup;
+			children = (
+				36CF5BC9579BC9F9FB346723 /* Secretary */,
+				033E51A4E34FAE06AE290DB0 /* ShareExtension */,
+			);
+			path = Apps;
+			sourceTree = "<group>";
+		};
+		76CD5313991DED31866F77D8 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				6F7FE39B5B1A4787ADCA8635 /* ImportToolbarButtons.swift */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		8517C4862776EE1DBAAC7A14 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5833D267B5D6FFA4342047E6 /* Secretary.app */,
+				3ACD51EA5667EBBA92234F76 /* SecretaryMac.app */,
+				90D2C9E7E22B041B11E81BE3 /* ShareExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8DD763FDBAC3FB4209B8F875 = {
+			isa = PBXGroup;
+			children = (
+				6D48EAC9CE227FAE1EB447B5 /* Apps */,
+				28ABC6A7315B07473876BC50 /* Packages */,
+				8517C4862776EE1DBAAC7A14 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		DC202A706803B7801A890D28 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				BC19834F90DC4FD3AC9D88F6 /* Assets.xcassets */,
+				1E1B90251D5944C1B1458268 /* Info-iOS.plist */,
+				690A009505A546AD91914D33 /* Info-macOS.plist */,
+				9C5108242A0341C2AF670759 /* Secretary.entitlements */,
+				357030A444924A0A8D080E3C /* Secretary-macOS.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6A9BB374B719E09A59042853 /* Secretary */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52C5CD03783790E4972AF412 /* Build configuration list for PBXNativeTarget "Secretary" */;
+			buildPhases = (
+				737BF706BD517C542616BE12 /* Sources */,
+				9103E1D18AFE345A67E9C0FC /* Frameworks */,
+				D1FB6ABDA7A9AE70C4714DE7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Secretary;
+			packageProductDependencies = (
+				3E1C64E833F692E1404ED95E /* SecretaryCore */,
+			);
+			productName = Secretary;
+			productReference = 5833D267B5D6FFA4342047E6 /* Secretary.app */;
+			productType = "com.apple.product-type.application";
+		};
+		757D31E4EC4927D95C8AF532 /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1B94E9182E78ADD81D02FB6 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				59534EB2F23A6E1994F60550 /* Sources */,
+				EE3EFB958C25F4BB87163D9D /* Frameworks */,
+				4A5E9DB6E3E693157E700380 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShareExtension;
+			packageProductDependencies = (
+				A979055B128E7A0EB579C9B1 /* SecretaryCore */,
+			);
+			productName = ShareExtension;
+			productReference = 90D2C9E7E22B041B11E81BE3 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		9B8355A037DDD15D22904629 /* SecretaryMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3663EBC90D08D2E6DB7DB3F /* Build configuration list for PBXNativeTarget "SecretaryMac" */;
+			buildPhases = (
+				F51B954E25A3C8A08EF6E168 /* Sources */,
+				ED51384ED10E06158D8D354B /* Frameworks */,
+				6691A4765EE6C63011F9DE6F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SecretaryMac;
+			packageProductDependencies = (
+				A6BF77FA1D8BC3732462C2D3 /* SecretaryCore */,
+			);
+			productName = SecretaryMac;
+			productReference = 3ACD51EA5667EBBA92234F76 /* SecretaryMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E1C4D0E9647D0EC7840797D1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2660;
+			};
+			buildConfigurationList = EED0980AF6CBB34397E7D868 /* Build configuration list for PBXProject "Secretary" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8DD763FDBAC3FB4209B8F875;
+			packageReferences = (
+				9B2DFE43F3267A6A60035FBE /* XCLocalSwiftPackageReference "Packages/SecretaryCore" */,
+			);
+			productRefGroup = 8517C4862776EE1DBAAC7A14 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6A9BB374B719E09A59042853 /* Secretary */,
+				9B8355A037DDD15D22904629 /* SecretaryMac */,
+				757D31E4EC4927D95C8AF532 /* ShareExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4A5E9DB6E3E693157E700380 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6691A4765EE6C63011F9DE6F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				38DA8E4ED03A40DD912C2C84 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1FB6ABDA7A9AE70C4714DE7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B236F0E53E7D4A83A1E59227 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		59534EB2F23A6E1994F60550 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D9CEEEF57AAB4B0A9BF90157 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		737BF706BD517C542616BE12 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3AE876D6C32E457BB6D5E24E /* SecretaryApp.swift in Sources */,
+				23A9876FE5ED4C70828DE61A /* LibraryStore.swift in Sources */,
+				5B82A2250D5844109CB5B518 /* RootView.swift in Sources */,
+				1548D55167D74A5C885CA2EA /* DocumentListView.swift in Sources */,
+				2B87A6AC15414C6B9B2DE8B4 /* DocumentDetailView.swift in Sources */,
+				D15D5987E5894203869A6BFE /* SettingsView.swift in Sources */,
+				F6B3FDF51EE5470B9C0C6819 /* SecretaryTheme.swift in Sources */,
+				89664A735D254FBAA52785F0 /* ImportToolbarButtons.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F51B954E25A3C8A08EF6E168 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				20AAC3ABA8244169A1042F68 /* SecretaryApp.swift in Sources */,
+				07662171DC6A476FA6E036BE /* LibraryStore.swift in Sources */,
+				A6C47F0D2D304E80BD0C1AC6 /* RootView.swift in Sources */,
+				0818C1E2137F4025992C9587 /* DocumentListView.swift in Sources */,
+				ACECEC58C82E4D8284EFF4B3 /* DocumentDetailView.swift in Sources */,
+				186E51297CD24773A3B499A0 /* SettingsView.swift in Sources */,
+				5435844171BC4CC49CD8655A /* SecretaryTheme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		26EBBA6E10031D09A269A568 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary;
+				PRODUCT_NAME = SecretaryMac;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		3B19F48359E47C6B86F725D6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZJG7ADBT3X;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-iOS.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary;
+				PRODUCT_NAME = Secretary;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7B21AE955587386844787456 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B81E5414E05B75BA1C97F257 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary;
+				PRODUCT_NAME = SecretaryMac;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		CF39FD878A658E432E52F26B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_ENTITLEMENTS = Apps/ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Apps/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D8D2FA4CB120FC4EE671C538 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ZJG7ADBT3X;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-iOS.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary;
+				PRODUCT_NAME = Secretary;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E4D112D7591B2920DAE8EEA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		FFD458847E1807A9DF478E76 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = Apps/ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Apps/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = be.vermeir.secretary.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		52C5CD03783790E4972AF412 /* Build configuration list for PBXNativeTarget "Secretary" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3B19F48359E47C6B86F725D6 /* Debug */,
+				D8D2FA4CB120FC4EE671C538 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1B94E9182E78ADD81D02FB6 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CF39FD878A658E432E52F26B /* Debug */,
+				FFD458847E1807A9DF478E76 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C3663EBC90D08D2E6DB7DB3F /* Build configuration list for PBXNativeTarget "SecretaryMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B81E5414E05B75BA1C97F257 /* Debug */,
+				26EBBA6E10031D09A269A568 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EED0980AF6CBB34397E7D868 /* Build configuration list for PBXProject "Secretary" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7B21AE955587386844787456 /* Debug */,
+				E4D112D7591B2920DAE8EEA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9B2DFE43F3267A6A60035FBE /* XCLocalSwiftPackageReference "Packages/SecretaryCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SecretaryCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3E1C64E833F692E1404ED95E /* SecretaryCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B2DFE43F3267A6A60035FBE /* XCLocalSwiftPackageReference "Packages/SecretaryCore" */;
+			productName = SecretaryCore;
+		};
+		A6BF77FA1D8BC3732462C2D3 /* SecretaryCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B2DFE43F3267A6A60035FBE /* XCLocalSwiftPackageReference "Packages/SecretaryCore" */;
+			productName = SecretaryCore;
+		};
+		A979055B128E7A0EB579C9B1 /* SecretaryCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B2DFE43F3267A6A60035FBE /* XCLocalSwiftPackageReference "Packages/SecretaryCore" */;
+			productName = SecretaryCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = E1C4D0E9647D0EC7840797D1 /* Project object */;
+}
