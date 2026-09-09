@@ -268,73 +268,101 @@ public final class LibraryStore: ObservableObject {
     public func importURLs(_ urls: [URL]) {
         guard let library else { return }
         isBusy = true
-        defer { isBusy = false }
-        do {
+        Task {
             var count = 0
+            var lastError: String?
             for url in urls {
-                // fileImporter / share sheet URLs are security-scoped; copy while access is held.
+                // Pin security-scoped fileImporter / open-panel URLs before hopping off MainActor.
+                // importFile uses NSFileCoordinator on a GCD queue; doing that via queue.sync
+                // from the main thread deadlocks when iCloud presenters need the main run loop
+                // (debugger stop lands in __pthread_kill / abort).
                 let accessing = url.startAccessingSecurityScopedResource()
-                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-
-                let temp = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString)
-                    .appendingPathExtension(url.pathExtension.isEmpty ? "pdf" : url.pathExtension)
-                try FileManager.default.copyItem(at: url, to: temp)
-                defer { try? FileManager.default.removeItem(at: temp) }
-
-                let record = try library.importFile(from: temp, preferredName: url.deletingPathExtension().lastPathComponent)
-                Task {
-                    await self.runOCRAndIndex(documentID: record.id)
+                defer {
+                    if accessing { url.stopAccessingSecurityScopedResource() }
                 }
-                count += 1
+                if !accessing {
+                    NSLog("Secretary: startAccessingSecurityScopedResource returned false for \(url.lastPathComponent); importing if readable")
+                }
+                do {
+                    let preferredName = url.deletingPathExtension().lastPathComponent
+                    let ext = url.pathExtension.isEmpty ? "pdf" : url.pathExtension
+                    let record = try await Task.detached(priority: .userInitiated) {
+                        try copyThenImport(url, preferredName: preferredName, pathExtension: ext, into: library)
+                    }.value
+                    Task { await self.runOCRAndIndex(documentID: record.id) }
+                    count += 1
+                } catch {
+                    lastError = error.localizedDescription
+                    NSLog("Secretary: import failed for \(url.lastPathComponent): \(error.localizedDescription)")
+                }
             }
-            reload()
-            statusMessage = "Imported \(count) file(s) to Inbox"
-        } catch {
-            errorMessage = error.localizedDescription
+            self.reload()
+            self.isBusy = false
+            if count > 0 {
+                self.statusMessage = "Imported \(count) file(s) to Inbox"
+            }
+            if let lastError {
+                self.errorMessage = lastError
+            }
         }
     }
 
     public func importFolder(_ folder: URL) {
         guard let library else { return }
         isBusy = true
-        defer { isBusy = false }
         let accessing = folder.startAccessingSecurityScopedResource()
-        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        do {
-            let enumerator = FileManager.default.enumerator(
-                at: folder,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles]
-            )
-            var count = 0
-            while let url = enumerator?.nextObject() as? URL {
-                var isDir: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue else { continue }
-                let record = try library.importFile(from: url)
-                Task { await self.runOCRAndIndex(documentID: record.id) }
-                count += 1
+        if !accessing {
+            NSLog("Secretary: startAccessingSecurityScopedResource returned false for folder \(folder.lastPathComponent)")
+        }
+        Task {
+            defer {
+                if accessing { folder.stopAccessingSecurityScopedResource() }
             }
-            reload()
-            statusMessage = "Imported \(count) file(s) from folder"
-        } catch {
-            errorMessage = error.localizedDescription
+            do {
+                let importedIDs = try await Task.detached(priority: .userInitiated) {
+                    let enumerator = FileManager.default.enumerator(
+                        at: folder,
+                        includingPropertiesForKeys: [.isRegularFileKey],
+                        options: [.skipsHiddenFiles]
+                    )
+                    var ids: [String] = []
+                    while let url = enumerator?.nextObject() as? URL {
+                        var isDir: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue else { continue }
+                        let record = try library.importFile(from: url)
+                        ids.append(record.id)
+                    }
+                    return ids
+                }.value
+                for id in importedIDs {
+                    Task { await self.runOCRAndIndex(documentID: id) }
+                }
+                self.reload()
+                self.statusMessage = "Imported \(importedIDs.count) file(s) from folder"
+            } catch {
+                self.errorMessage = error.localizedDescription
+                NSLog("Secretary: folder import failed: \(error.localizedDescription)")
+            }
+            self.isBusy = false
         }
     }
 
     public func importData(_ data: Data, hint: String, pathExtension: String) {
         guard let library else { return }
         isBusy = true
-        defer { isBusy = false }
-        do {
-            let record = try library.importData(data, filenameHint: hint, pathExtension: pathExtension)
-            Task {
-                await self.runOCRAndIndex(documentID: record.id)
+        Task {
+            do {
+                let record = try await Task.detached(priority: .userInitiated) {
+                    try library.importData(data, filenameHint: hint, pathExtension: pathExtension)
+                }.value
+                Task { await self.runOCRAndIndex(documentID: record.id) }
+                self.reload()
+                self.statusMessage = "Added scan to Inbox"
+            } catch {
+                self.errorMessage = error.localizedDescription
+                NSLog("Secretary: importData failed: \(error.localizedDescription)")
             }
-            reload()
-            statusMessage = "Added scan to Inbox"
-        } catch {
-            errorMessage = error.localizedDescription
+            self.isBusy = false
         }
     }
 
@@ -466,14 +494,39 @@ public final class LibraryStore: ObservableObject {
             guard let record = try library.document(id: documentID) else { return }
             _ = try library.ensureDownloaded(for: record)
             let url = library.fileURL(for: record)
-            let text = TextExtractionService.extractText(from: url)
+            let text = await Task.detached(priority: .utility) {
+                TextExtractionService.extractText(from: url)
+            }.value
             let updated = try library.updateMetadata(documentID: documentID, ocrText: text)
             SpotlightIndexer.index(updated, fileURL: url)
-            await MainActor.run { self.reload() }
+            self.reload()
         } catch {
-            await MainActor.run { self.errorMessage = error.localizedDescription }
+            NSLog("Secretary: OCR/index failed for \(documentID): \(error.localizedDescription)")
+            self.errorMessage = error.localizedDescription
         }
     }
+}
+
+/// Copy a picker/drop URL into a sandbox temp file, then into Inbox.
+/// Must not run on the main actor: DocumentLibrary.importFile uses NSFileCoordinator
+/// via DispatchQueue.sync, which deadlocks if the main run loop is blocked.
+private func copyThenImport(
+    _ url: URL,
+    preferredName: String,
+    pathExtension: String,
+    into library: DocumentLibrary
+) throws -> DocumentRecord {
+    let temp = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+        .appendingPathExtension(pathExtension)
+    do {
+        try FileManager.default.copyItem(at: url, to: temp)
+    } catch {
+        NSLog("Secretary: temp copy failed (\(error.localizedDescription)); importing source URL")
+        return try library.importFile(from: url, preferredName: preferredName)
+    }
+    defer { try? FileManager.default.removeItem(at: temp) }
+    return try library.importFile(from: temp, preferredName: preferredName)
 }
 
 public enum SecretaryUTTypes {
