@@ -66,45 +66,126 @@ struct DocumentDetailView: View {
     }
 
     var body: some View {
+        detailBody
+            .navigationTitle(liveDocument.displayTitle)
+        #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
+            .tint(SecretaryTheme.accent)
+            .onAppear { refreshAll() }
+            .onChange(of: document.id) { _, _ in
+                showReclassifyPanel = false
+                selectedSuggestionID = nil
+                refreshAll()
+            }
+            .onChange(of: liveDocument.ocrText) { _, _ in
+                reloadSuggestions()
+                if isClassifying, selectedSuggestionID == nil {
+                    seedDraftFromDocument()
+                }
+            }
+            .sheet(isPresented: $showClassify) {
+                ClassifySheet(document: liveDocument)
+                    .environmentObject(store)
+                    #if os(macOS)
+                    .frame(width: 480, height: 560)
+                    #endif
+            }
+    }
+
+    @ViewBuilder
+    private var detailBody: some View {
+        #if os(macOS)
+        GeometryReader { geo in
+            let metrics = DetailLayoutMetrics.resolve(
+                availableWidth: geo.size.width,
+                availableHeight: geo.size.height,
+                isMac: true
+            )
+            if metrics.usesSideColumn {
+                macWideDetail(metrics: metrics)
+            } else {
+                macStackedDetail(metrics: metrics)
+            }
+        }
+        #else
         DetailPage {
+            detailStack(
+                previewMinHeight: DetailLayoutMetrics.iosPreviewMin,
+                previewMaxHeight: DetailLayoutMetrics.iosPreviewMax
+            )
+        }
+        #endif
+    }
+
+    #if os(macOS)
+    private func macWideDetail(metrics: DetailLayoutMetrics) -> some View {
+        HStack(alignment: .top, spacing: SecretaryTheme.spacingXL) {
             VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
                 header
-                if isClassifying {
-                    classifyPanel
-                } else {
-                    reclassifyPrompt
-                }
-                preview
-                metadataForm
-                if !duplicates.isEmpty {
-                    duplicateBanner
-                }
-                actions
+                previewPane(
+                    minHeight: metrics.previewMinHeight,
+                    maxHeight: metrics.previewMaxHeight,
+                    fillsRemaining: true
+                )
             }
-        }
-        .navigationTitle(liveDocument.displayTitle)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .tint(SecretaryTheme.accent)
-        .onAppear { refreshAll() }
-        .onChange(of: document.id) { _, _ in
-            showReclassifyPanel = false
-            selectedSuggestionID = nil
-            refreshAll()
-        }
-        .onChange(of: liveDocument.ocrText) { _, _ in
-            reloadSuggestions()
-            if isClassifying, selectedSuggestionID == nil {
-                seedDraftFromDocument()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+                    if isClassifying {
+                        classifyPanel
+                    } else {
+                        reclassifyPrompt
+                    }
+                    metadataForm
+                    if !duplicates.isEmpty {
+                        duplicateBanner
+                    }
+                    actions
+                }
+                .padding(.vertical, SecretaryTheme.spacingXL)
+                .padding(.trailing, SecretaryTheme.pagePadding)
             }
+            .frame(width: metrics.sideColumnWidth)
         }
-        .sheet(isPresented: $showClassify) {
-            ClassifySheet(document: liveDocument)
-                .environmentObject(store)
-                #if os(macOS)
-                .frame(width: 480, height: 560)
-                #endif
+        .padding(.leading, SecretaryTheme.pagePadding)
+        .padding(.top, SecretaryTheme.spacingXL)
+        .padding(.bottom, SecretaryTheme.spacingMD)
+    }
+
+    private func macStackedDetail(metrics: DetailLayoutMetrics) -> some View {
+        ScrollView {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                detailStack(
+                    previewMinHeight: metrics.previewMinHeight,
+                    previewMaxHeight: metrics.previewMaxHeight
+                )
+                .frame(maxWidth: metrics.contentWidth, alignment: .leading)
+                .padding(.horizontal, SecretaryTheme.pagePadding)
+                .padding(.vertical, SecretaryTheme.spacingXL)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+    #endif
+
+    private func detailStack(previewMinHeight: CGFloat, previewMaxHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+            header
+            if isClassifying {
+                classifyPanel
+            } else {
+                reclassifyPrompt
+            }
+            previewPane(minHeight: previewMinHeight, maxHeight: previewMaxHeight)
+            metadataForm
+            if !duplicates.isEmpty {
+                duplicateBanner
+            }
+            actions
         }
     }
 
@@ -368,11 +449,15 @@ struct DocumentDetailView: View {
     }
 
     @ViewBuilder
-    private var preview: some View {
+    private func previewPane(
+        minHeight: CGFloat,
+        maxHeight: CGFloat,
+        fillsRemaining: Bool = false
+    ) -> some View {
         if let url = store.fileURL(for: liveDocument) {
             DocumentPreview(url: url)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 220, idealHeight: 260, maxHeight: 320)
+                .frame(maxWidth: .infinity, maxHeight: fillsRemaining ? .infinity : maxHeight)
+                .frame(minHeight: minHeight)
                 .background(SecretaryTheme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous))
                 .overlay(

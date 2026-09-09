@@ -1,3 +1,4 @@
+import SecretaryCore
 import SwiftUI
 
 /// Quiet ink-on-paper look for a personal archive.
@@ -45,12 +46,21 @@ enum SecretaryTheme {
     // MARK: - Layout
     
     static let sidebarWidth: CGFloat = 220
+    #if os(macOS)
+    static let listWidth: CGFloat = 340
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.macSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
+    #else
     static let listWidth: CGFloat = 320
-    static let detailContentMax: CGFloat = 680
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.iosSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.iosListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.iosContentMax
+    #endif
     static let windowMinWidth: CGFloat = 960
     static let windowMinHeight: CGFloat = 600
-    static let windowDefaultWidth: CGFloat = 1180
-    static let windowDefaultHeight: CGFloat = 740
+    static let windowDefaultWidth: CGFloat = 1280
+    static let windowDefaultHeight: CGFloat = 800
 }
 
 // MARK: - Typography
@@ -120,21 +130,41 @@ struct SecretaryPanel<Content: View>: View {
 }
 
 /// Keeps detail content readable instead of stretching edge-to-edge on wide screens.
+/// On Mac the cap follows the window (up to 1280pt); iOS stays at 680pt.
 struct DetailPage<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ScrollView {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                content()
-                    .frame(maxWidth: SecretaryTheme.detailContentMax, alignment: .leading)
-                    .padding(.horizontal, SecretaryTheme.pagePadding)
-                    .padding(.vertical, SecretaryTheme.spacingXL)
-                Spacer(minLength: 0)
+        GeometryReader { geo in
+            let metrics = Self.metrics(for: geo.size)
+            ScrollView {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    content()
+                        .frame(maxWidth: metrics.contentWidth, alignment: .leading)
+                        .padding(.horizontal, SecretaryTheme.pagePadding)
+                        .padding(.vertical, SecretaryTheme.spacingXL)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private static func metrics(for size: CGSize) -> DetailLayoutMetrics {
+        #if os(macOS)
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: true
+        )
+        #else
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: false
+        )
+        #endif
     }
 }
 
