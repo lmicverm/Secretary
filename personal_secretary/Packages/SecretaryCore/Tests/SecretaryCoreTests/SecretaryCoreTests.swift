@@ -327,6 +327,19 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.category, "Tax")
         XCTAssertEqual(tax.year, 2023)
     }
+
+    func testDetailSplitUsesMinimaAndPersistedWidth() {
+        XCTAssertEqual(DetailSplitLayout.metaMinWidth, 280)
+        XCTAssertEqual(DetailSplitLayout.previewMinWidth, 360)
+        XCTAssertEqual(DetailSplitLayout.minimumSplitWidth, 648)
+        XCTAssertTrue(DetailSplitLayout.canSplit(detailWidth: 900))
+        XCTAssertFalse(DetailSplitLayout.canSplit(detailWidth: 640))
+
+        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(200, detailWidth: 900), 280)
+        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(800, detailWidth: 900), 532)
+        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(340, detailWidth: 900), 340)
+        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(400, detailWidth: 500), 500)
+    }
 }
 
 /// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).

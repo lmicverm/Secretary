@@ -28,6 +28,8 @@
 		D15D5987E5894203869A6BFE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */; };
 		D9CEEEF57AAB4B0A9BF90157 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CCDAD156924F04BFB6D55E /* ShareViewController.swift */; };
 		F6B3FDF51EE5470B9C0C6819 /* SecretaryTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */; };
+		A18A5F1D50C0000000000002 /* PDFFindSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18A5F1D50C0000000000001 /* PDFFindSupport.swift */; };
+		A18A5F1D50C0000000000003 /* PDFFindSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18A5F1D50C0000000000001 /* PDFFindSupport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -51,6 +53,7 @@
 		9C5108242A0341C2AF670759 /* Secretary.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Secretary.entitlements; sourceTree = "<group>"; };
 		BC19834F90DC4FD3AC9D88F6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecretaryTheme.swift; sourceTree = "<group>"; };
+		A18A5F1D50C0000000000001 /* PDFFindSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFFindSupport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +102,7 @@
 				14CB4BB7C1DB4E4583B2E545 /* RootView.swift */,
 				39112588E2694E018F726B9E /* DocumentListView.swift */,
 				71F16B90A5824D38961DAA9C /* DocumentDetailView.swift */,
+				A18A5F1D50C0000000000001 /* PDFFindSupport.swift */,
 				30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */,
 				D5A80DA7081B4382A54BF46B /* SecretaryTheme.swift */,
 			);
@@ -311,6 +315,7 @@
 				5B82A2250D5844109CB5B518 /* RootView.swift in Sources */,
 				1548D55167D74A5C885CA2EA /* DocumentListView.swift in Sources */,
 				2B87A6AC15414C6B9B2DE8B4 /* DocumentDetailView.swift in Sources */,
+				A18A5F1D50C0000000000002 /* PDFFindSupport.swift in Sources */,
 				D15D5987E5894203869A6BFE /* SettingsView.swift in Sources */,
 				F6B3FDF51EE5470B9C0C6819 /* SecretaryTheme.swift in Sources */,
 				89664A735D254FBAA52785F0 /* ImportToolbarButtons.swift in Sources */,
@@ -326,6 +331,7 @@
 				A6C47F0D2D304E80BD0C1AC6 /* RootView.swift in Sources */,
 				0818C1E2137F4025992C9587 /* DocumentListView.swift in Sources */,
 				ACECEC58C82E4D8284EFF4B3 /* DocumentDetailView.swift in Sources */,
+				A18A5F1D50C0000000000003 /* PDFFindSupport.swift in Sources */,
 				186E51297CD24773A3B499A0 /* SettingsView.swift in Sources */,
 				5435844171BC4CC49CD8655A /* SecretaryTheme.swift in Sources */,
 			);

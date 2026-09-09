@@ -86,6 +86,7 @@ SHARED_SOURCES = [
     "Apps/Secretary/Shared/RootView.swift",
     "Apps/Secretary/Shared/DocumentListView.swift",
     "Apps/Secretary/Shared/DocumentDetailView.swift",
+    "Apps/Secretary/Shared/PDFFindSupport.swift",
     "Apps/Secretary/Shared/SettingsView.swift",
     "Apps/Secretary/Shared/SecretaryTheme.swift",
 ]

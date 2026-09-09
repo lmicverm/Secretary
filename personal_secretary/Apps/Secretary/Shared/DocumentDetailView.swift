@@ -32,6 +32,10 @@ struct DocumentDetailView: View {
     @State private var confirmRemove = false
     /// Last tags written by auto-fill so OCR upgrades can replace them without clobbering edits.
     @State private var autoFilledTags: [String] = []
+    @StateObject private var findSession = PDFFindSession()
+    #if os(macOS)
+    @AppStorage(DetailSplitLayout.metaWidthDefaultsKey) private var storedMetaWidth = DetailSplitLayout.defaultMetaWidth
+    #endif
 
     private var liveDocument: DocumentRecord {
         store.documents.first(where: { $0.id == document.id }) ?? document
@@ -84,7 +88,11 @@ struct DocumentDetailView: View {
         .onChange(of: document.id) { _, _ in
             showReclassifyPanel = false
             selectedSuggestionID = nil
+            findSession.dismiss()
             refreshAll()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .secretaryFindInDocument)) { _ in
+            findSession.begin(supportsFind: isPDFPreview)
         }
         .onChange(of: liveDocument.ocrText) { _, _ in
             reloadSuggestions()
@@ -102,29 +110,38 @@ struct DocumentDetailView: View {
         }
     }
 
+    private var isPDFPreview: Bool {
+        store.fileURL(for: liveDocument)?.pathExtension.lowercased() == "pdf"
+    }
+
     #if os(macOS)
     /// Paperless-style: metadata/classify on the left, preview filling the remaining pane.
     private var macDetail: some View {
         GeometryReader { geo in
-            let split = geo.size.width >= SecretaryTheme.detailSplitMinWidth
-            if split {
+            let detailWidth = geo.size.width
+            if DetailSplitLayout.canSplit(detailWidth: Double(detailWidth)) {
+                let metaWidth = CGFloat(
+                    DetailSplitLayout.clampedMetaWidth(storedMetaWidth, detailWidth: Double(detailWidth))
+                )
                 HStack(alignment: .top, spacing: 0) {
                     ScrollView {
                         metaStack
                             .padding(.horizontal, SecretaryTheme.spacingLG)
                             .padding(.vertical, SecretaryTheme.spacingLG)
                     }
-                    .frame(width: SecretaryTheme.metaColumnWidth(for: geo.size.width))
+                    .frame(width: metaWidth)
                     .frame(maxHeight: .infinity)
 
-                    Rectangle()
-                        .fill(SecretaryTheme.stroke)
-                        .frame(width: 1)
-                        .padding(.vertical, SecretaryTheme.spacingMD)
+                    DetailSplitHandle(
+                        currentMetaWidth: metaWidth,
+                        detailWidth: detailWidth,
+                        storedMetaWidth: $storedMetaWidth
+                    )
 
                     previewPane
                         .padding(.trailing, SecretaryTheme.spacingLG)
                         .padding(.vertical, SecretaryTheme.spacingLG)
+                        .frame(minWidth: SecretaryTheme.detailPreviewMinWidth)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
@@ -175,7 +192,7 @@ struct DocumentDetailView: View {
     private var previewPane: some View {
         Group {
             if let url = store.fileURL(for: liveDocument) {
-                DocumentPreview(url: url)
+                DocumentPreview(url: url, findSession: findSession)
             } else {
                 EmptyStateView(icon: "doc", title: "Preview unavailable")
             }
@@ -453,7 +470,7 @@ struct DocumentDetailView: View {
     @ViewBuilder
     private var compactPreview: some View {
         if let url = store.fileURL(for: liveDocument) {
-            DocumentPreview(url: url)
+            DocumentPreview(url: url, findSession: findSession)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SecretaryTheme.previewMinHeight, idealHeight: SecretaryTheme.previewIdealHeight, maxHeight: SecretaryTheme.previewMaxHeight)
                 .background(SecretaryTheme.panel)
@@ -813,11 +830,44 @@ enum TextFeaturesYear {
 
 struct DocumentPreview: View {
     let url: URL
+    @ObservedObject var findSession: PDFFindSession
 
     var body: some View {
         let ext = url.pathExtension.lowercased()
+        ZStack(alignment: .top) {
+            previewContent(ext: ext)
+            HStack(spacing: 0) {
+                if findSession.isPresented {
+                    DocumentFindBar(session: findSession)
+                    Spacer(minLength: 0)
+                } else {
+                    Spacer()
+                    Button {
+                        findSession.begin(supportsFind: ext == "pdf")
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(SecretaryTheme.textSecondary)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Find in Document")
+                    #if os(macOS)
+                    .keyboardShortcut("f", modifiers: .command)
+                    #endif
+                    .accessibilityLabel("Find in document")
+                }
+            }
+            .padding(SecretaryTheme.spacingSM)
+            .zIndex(1)
+        }
+    }
+
+    @ViewBuilder
+    private func previewContent(ext: String) -> some View {
         if ext == "pdf" {
-            PDFKitRepresentedView(url: url)
+            PDFKitRepresentedView(url: url, findSession: findSession)
         } else if ["png", "jpg", "jpeg", "heic", "tif", "tiff"].contains(ext) {
             #if os(macOS)
             if let image = NSImage(contentsOf: url) {
@@ -850,31 +900,93 @@ struct DocumentPreview: View {
 #if os(macOS)
 struct PDFKitRepresentedView: NSViewRepresentable {
     let url: URL
+    var findSession: PDFFindSession?
+
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
         view.document = PDFDocument(url: url)
+        findSession?.attach(view)
         return view
     }
+
     func updateNSView(_ nsView: PDFView, context: Context) {
         if nsView.document?.documentURL != url {
             nsView.document = PDFDocument(url: url)
+            findSession?.resetForNewDocument()
         }
+        findSession?.attach(nsView)
+    }
+}
+
+private struct DetailSplitHandle: View {
+    let currentMetaWidth: CGFloat
+    let detailWidth: CGFloat
+    @Binding var storedMetaWidth: Double
+    @State private var dragOrigin: CGFloat?
+    @State private var hovering = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .frame(width: CGFloat(DetailSplitLayout.dividerHitWidth))
+                .contentShape(Rectangle())
+            Rectangle()
+                .fill(hovering ? SecretaryTheme.accent.opacity(0.45) : SecretaryTheme.stroke)
+                .frame(width: hovering ? 2 : 1)
+                .padding(.vertical, SecretaryTheme.spacingMD)
+        }
+        .frame(maxHeight: .infinity)
+        .onHover { isHovering in
+            hovering = isHovering
+            if isHovering {
+                NSCursor.resizeLeftRight.set()
+            } else if dragOrigin == nil {
+                NSCursor.arrow.set()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    if dragOrigin == nil {
+                        dragOrigin = currentMetaWidth
+                    }
+                    let proposed = (dragOrigin ?? currentMetaWidth) + value.translation.width
+                    storedMetaWidth = DetailSplitLayout.clampedMetaWidth(
+                        Double(proposed),
+                        detailWidth: Double(detailWidth)
+                    )
+                }
+                .onEnded { _ in
+                    dragOrigin = nil
+                    if !hovering {
+                        NSCursor.arrow.set()
+                    }
+                }
+        )
+        .help("Drag to resize")
+        .accessibilityLabel("Resize details and preview")
     }
 }
 #else
 struct PDFKitRepresentedView: UIViewRepresentable {
     let url: URL
+    var findSession: PDFFindSession?
+
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
         view.document = PDFDocument(url: url)
+        findSession?.attach(view)
         return view
     }
+
     func updateUIView(_ uiView: PDFView, context: Context) {
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
+            findSession?.resetForNewDocument()
         }
+        findSession?.attach(uiView)
     }
 }
 #endif
