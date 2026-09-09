@@ -70,20 +70,23 @@ public final class LibraryStore: ObservableObject {
 
     public func chooseLibraryRoot() {
         #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Use Folder"
-        panel.message = "Choose where Secretary stores your documents. Existing files in this folder can be indexed."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try LibraryLocation.setCustomRoot(url)
-            bootstrap()
-            statusMessage = "Library folder updated"
-        } catch {
-            errorMessage = error.localizedDescription
+        // Called from the Library command menu; wait until menu tracking ends.
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Use Folder"
+            panel.message = "Choose where Secretary stores your documents. Existing files in this folder can be indexed."
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            do {
+                try LibraryLocation.setCustomRoot(url)
+                self.bootstrap()
+                self.statusMessage = "Library folder updated"
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
         }
         #endif
     }
@@ -112,7 +115,11 @@ public final class LibraryStore: ObservableObject {
     public func scanDropFolder() async {
         guard let library else { return }
         do {
-            let imported = try library.ingestDropFolder()
+            // ingestDropFolder uses NSFileCoordinator on a GCD queue. Do not
+            // queue.sync that from MainActor — same iCloud deadlock as Import.
+            let imported = try await Task.detached(priority: .userInitiated) {
+                try library.ingestDropFolder()
+            }.value
             guard !imported.isEmpty else { return }
             for record in imported {
                 Task { await self.runOCRAndIndex(documentID: record.id) }
@@ -121,6 +128,7 @@ public final class LibraryStore: ObservableObject {
             statusMessage = "Moved \(imported.count) file(s) from Drop → Inbox"
         } catch {
             errorMessage = error.localizedDescription
+            NSLog("Secretary: Drop folder ingest failed: \(error.localizedDescription)")
         }
     }
 
