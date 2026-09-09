@@ -9,8 +9,12 @@ public final class DocumentIndex: @unchecked Sendable {
 
     public init(databaseURL: URL) throws {
         self.dbURL = databaseURL
-        try open()
-        try migrate()
+        // Open + migrate on the same serial queue as every later query so the
+        // connection is never used from a different thread than sqlite3_open.
+        try queue.sync {
+            try open()
+            try migrate()
+        }
     }
 
     deinit {
@@ -209,8 +213,18 @@ public final class DocumentIndex: @unchecked Sendable {
     private func open() throws {
         let dir = dbURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if sqlite3_open(dbURL.path, &db) != SQLITE_OK {
-            throw IndexError.openFailed(String(cString: sqlite3_errmsg(db)))
+        let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        let status = dbURL.withUnsafeFileSystemRepresentation { path -> Int32 in
+            guard let path else { return SQLITE_CANTOPEN }
+            return sqlite3_open_v2(path, &db, flags, nil)
+        }
+        if status != SQLITE_OK {
+            let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "could not open \(dbURL.lastPathComponent)"
+            if let db {
+                sqlite3_close(db)
+                self.db = nil
+            }
+            throw IndexError.openFailed(message)
         }
         try exec("PRAGMA journal_mode=WAL;")
         try exec("PRAGMA foreign_keys=ON;")

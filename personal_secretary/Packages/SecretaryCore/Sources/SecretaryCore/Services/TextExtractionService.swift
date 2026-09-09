@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import PDFKit
 import Vision
@@ -56,38 +57,45 @@ public enum TextExtractionService {
         let count = min(document.pageCount, maxPages)
         for i in 0..<count {
             guard let page = document.page(at: i) else { continue }
-            let bounds = page.bounds(for: .mediaBox)
-            let scale: CGFloat = 2.0
-            let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
-            #if canImport(AppKit)
-            let image = NSImage(size: size)
-            image.lockFocus()
-            if let context = NSGraphicsContext.current?.cgContext {
-                context.saveGState()
-                context.translateBy(x: 0, y: size.height)
-                context.scaleBy(x: scale, y: -scale)
-                page.draw(with: .mediaBox, to: context)
-                context.restoreGState()
-            }
-            image.unlockFocus()
-            if let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-                parts.append(ocrCGImage(cgImage))
-            }
-            #elseif canImport(UIKit)
-            let renderer = UIGraphicsImageRenderer(size: size)
-            let uiImage = renderer.image { ctx in
-                UIColor.white.setFill()
-                ctx.fill(CGRect(origin: .zero, size: size))
-                ctx.cgContext.translateBy(x: 0, y: size.height)
-                ctx.cgContext.scaleBy(x: scale, y: -scale)
-                page.draw(with: .mediaBox, to: ctx.cgContext)
-            }
-            if let cgImage = uiImage.cgImage {
-                parts.append(ocrCGImage(cgImage))
-            }
-            #endif
+            // lockFocus() aborts off the main thread or on a zero-size image.
+            // Rasterize into a CG bitmap instead so import-time OCR cannot crash.
+            guard let cgImage = rasterizePDFPage(page) else { continue }
+            parts.append(ocrCGImage(cgImage))
         }
         return parts.joined(separator: "\n")
+    }
+
+    private static func rasterizePDFPage(_ page: PDFPage) -> CGImage? {
+        let bounds = page.bounds(for: .mediaBox)
+        let scale: CGFloat = 2
+        let width = Int((bounds.width * scale).rounded(.down))
+        let height = Int((bounds.height * scale).rounded(.down))
+        guard width >= 1, height >= 1 else {
+            NSLog("Secretary: skip OCR raster for empty PDF page")
+            return nil
+        }
+        guard width <= 4096, height <= 4096 else {
+            NSLog("Secretary: skip OCR raster for oversized PDF page \(width)x\(height)")
+            return nil
+        }
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.saveGState()
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: scale, y: -scale)
+        page.draw(with: .mediaBox, to: context)
+        context.restoreGState()
+        return context.makeImage()
     }
 
     public static func ocrImage(at url: URL) -> String {

@@ -593,7 +593,7 @@ def main() -> None:
 		{IDS["debug_ios"]} /* Debug */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
 				CODE_SIGN_IDENTITY = "-";
@@ -623,7 +623,7 @@ def main() -> None:
 		{IDS["release_ios"]} /* Release */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -652,7 +652,7 @@ def main() -> None:
 		{IDS["debug_mac"]} /* Debug */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -663,6 +663,7 @@ def main() -> None:
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -679,7 +680,7 @@ def main() -> None:
 		{IDS["release_mac"]} /* Release */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -690,6 +691,7 @@ def main() -> None:
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

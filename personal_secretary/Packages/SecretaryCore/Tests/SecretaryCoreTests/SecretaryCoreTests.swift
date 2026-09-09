@@ -88,6 +88,35 @@ final class SecretaryCoreTests: XCTestCase {
         )
     }
 
+    func testRepeatedImportsAfterRefreshFromDisk() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryImport-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        try library.refreshFromDisk()
+
+        for i in 0..<3 {
+            let source = root.appendingPathComponent("file-\(i).txt")
+            try "content \(i) tax document".write(to: source, atomically: true, encoding: .utf8)
+            let imported = try library.importFile(from: source, preferredName: "file-\(i)")
+            XCTAssertTrue(imported.isInbox)
+            XCTAssertFalse(imported.id.isEmpty)
+        }
+
+        let inbox = try library.search(DocumentFilter(inboxOnly: true))
+        XCTAssertEqual(inbox.count, 3)
+    }
+
+    func testImportDataWritesInboxRecord() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryScan-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let record = try library.importData(Data("scan-bytes".utf8), filenameHint: "letter-scan", pathExtension: "txt")
+        XCTAssertTrue(record.isInbox)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: library.fileURL(for: record).path))
+    }
+
     func testParsePath() {
         let inbox = FolderSchema.parsePath("Inbox/foo.pdf")
         XCTAssertTrue(inbox.isInbox)

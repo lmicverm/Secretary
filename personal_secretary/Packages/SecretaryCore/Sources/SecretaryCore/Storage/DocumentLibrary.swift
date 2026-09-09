@@ -83,6 +83,9 @@ public final class DocumentLibrary: @unchecked Sendable {
         try queue.sync {
             let accessing = sourceURL.startAccessingSecurityScopedResource()
             defer { if accessing { sourceURL.stopAccessingSecurityScopedResource() } }
+            if !accessing {
+                NSLog("Secretary: importFile has no security-scoped access for \(sourceURL.lastPathComponent)")
+            }
 
             let ext = sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
             let base = preferredName ?? sourceURL.deletingPathExtension().lastPathComponent
