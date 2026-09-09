@@ -138,6 +138,62 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.category, "Tax")
         XCTAssertEqual(tax.year, 2023)
     }
+
+    func testIOSDetailLayoutStaysCompact() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 390,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(metrics.contentWidth, 390)
+        XCTAssertEqual(metrics.previewMinHeight, 220)
+        XCTAssertEqual(metrics.previewMaxHeight, 320)
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.sideColumnWidth, 0)
+
+        let widePhone = DetailLayoutMetrics.resolve(
+            availableWidth: 900,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(widePhone.contentWidth, DetailLayoutMetrics.iosContentMax)
+        XCTAssertFalse(widePhone.usesSideColumn)
+    }
+
+    func testMacStackedDetailGrowsPreviewWithWindow() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 640,
+            availableHeight: 700,
+            isMac: true
+        )
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 640 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMinHeight, 320)
+        XCTAssertEqual(metrics.previewMinHeight, 700 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMaxHeight, metrics.previewMinHeight)
+    }
+
+    func testMacWideDetailUsesSideColumnAndRaisedCap() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 1040,
+            availableHeight: 900,
+            isMac: true
+        )
+        XCTAssertTrue(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 1040 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMin)
+        XCTAssertLessThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMax)
+        XCTAssertGreaterThanOrEqual(metrics.previewMinHeight, DetailLayoutMetrics.macPreviewMin)
+        XCTAssertEqual(metrics.previewMinHeight, 900 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+
+        let huge = DetailLayoutMetrics.resolve(
+            availableWidth: 2000,
+            availableHeight: 1200,
+            isMac: true
+        )
+        XCTAssertEqual(huge.contentWidth, DetailLayoutMetrics.macContentMax)
+        XCTAssertTrue(huge.usesSideColumn)
+    }
 }
 
 /// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).
