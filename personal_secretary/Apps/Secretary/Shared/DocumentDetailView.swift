@@ -30,6 +30,8 @@ struct DocumentDetailView: View {
     @State private var draftTitle = ""
     @State private var selectedSuggestionID: String?
     @State private var confirmRemove = false
+    /// Last tags written by auto-fill so OCR upgrades can replace them without clobbering edits.
+    @State private var autoFilledTags: [String] = []
 
     private var liveDocument: DocumentRecord {
         store.documents.first(where: { $0.id == document.id }) ?? document
@@ -66,88 +68,12 @@ struct DocumentDetailView: View {
     }
 
     var body: some View {
-        detailBody
-            .navigationTitle(liveDocument.displayTitle)
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-        #endif
-            .tint(SecretaryTheme.accent)
-            .onAppear { refreshAll() }
-            .onChange(of: document.id) { _, _ in
-                showReclassifyPanel = false
-                selectedSuggestionID = nil
-                refreshAll()
-            }
-            .onChange(of: liveDocument.ocrText) { _, _ in
-                reloadSuggestions()
-                if isClassifying, selectedSuggestionID == nil {
-                    seedDraftFromDocument()
-                }
-            }
-            .sheet(isPresented: $showClassify) {
-                ClassifySheet(document: liveDocument)
-                    .environmentObject(store)
-                    #if os(macOS)
-                    .frame(width: 480, height: 560)
-                    #endif
-            }
-    }
-
-    @ViewBuilder
-    private var detailBody: some View {
-        #if os(macOS)
-        GeometryReader { geo in
-            let metrics = DetailLayoutMetrics.resolve(
-                availableWidth: geo.size.width,
-                availableHeight: geo.size.height,
-                isMac: true
-            )
-            if metrics.usesSideColumn {
-                macWideDetail(metrics: metrics)
-            } else {
-                macStackedDetail(metrics: metrics)
-            }
-        }
-        #else
-        DetailPage {
-            detailStack(
-                previewMinHeight: DetailLayoutMetrics.iosPreviewMin,
-                previewMaxHeight: DetailLayoutMetrics.iosPreviewMax
-            )
-        }
-        #endif
-    }
-
-    #if os(macOS)
-    private func macWideDetail(metrics: DetailLayoutMetrics) -> some View {
-        HStack(alignment: .top, spacing: SecretaryTheme.spacingXL) {
-            VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
-                header
-                previewPane(
-                    minHeight: metrics.previewMinHeight,
-                    maxHeight: metrics.previewMaxHeight,
-                    fillsRemaining: true
-                )
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
-                    if isClassifying {
-                        classifyPanel
-                    } else {
-                        reclassifyPrompt
-                    }
-                    metadataForm
-                    if !duplicates.isEmpty {
-                        duplicateBanner
-                    }
-                    actions
-                }
-                .padding(.vertical, SecretaryTheme.spacingXL)
-                .padding(.trailing, SecretaryTheme.pagePadding)
-            }
-            .frame(width: metrics.sideColumnWidth)
+        Group {
+            #if os(macOS)
+            macDetail
+            #else
+            iosDetail
+            #endif
         }
         .padding(.leading, SecretaryTheme.pagePadding)
         .padding(.top, SecretaryTheme.spacingXL)
@@ -167,7 +93,7 @@ struct DocumentDetailView: View {
                 .padding(.vertical, SecretaryTheme.spacingXL)
                 Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity)
+            applySuggestedTagsIfNeeded()
         }
     }
     #endif
@@ -188,6 +114,94 @@ struct DocumentDetailView: View {
             actions
         }
     }
+
+    #if os(macOS)
+    /// Paperless-style: metadata/classify on the left, preview filling the remaining pane.
+    private var macDetail: some View {
+        GeometryReader { geo in
+            let split = geo.size.width >= SecretaryTheme.detailSplitMinWidth
+            if split {
+                HStack(alignment: .top, spacing: 0) {
+                    ScrollView {
+                        metaStack
+                            .padding(.horizontal, SecretaryTheme.spacingLG)
+                            .padding(.vertical, SecretaryTheme.spacingLG)
+                    }
+                    .frame(width: SecretaryTheme.metaColumnWidth(for: geo.size.width))
+                    .frame(maxHeight: .infinity)
+
+                    Rectangle()
+                        .fill(SecretaryTheme.stroke)
+                        .frame(width: 1)
+                        .padding(.vertical, SecretaryTheme.spacingMD)
+
+                    previewPane
+                        .padding(.trailing, SecretaryTheme.spacingLG)
+                        .padding(.vertical, SecretaryTheme.spacingLG)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+                        metaStack
+                        previewPane
+                            .frame(minHeight: SecretaryTheme.previewHeight(forViewport: geo.size.height))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(SecretaryTheme.spacingLG)
+                }
+            }
+        }
+    }
+    #endif
+
+    #if !os(macOS)
+    private var iosDetail: some View {
+        DetailPage {
+            VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+                metaStack
+                compactPreview
+            }
+        }
+    }
+    #endif
+
+    private var metaStack: some View {
+        VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
+            header
+            if isClassifying {
+                classifyPanel
+            } else {
+                reclassifyPrompt
+            }
+            metadataForm
+            if !duplicates.isEmpty {
+                duplicateBanner
+            }
+            actions
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private var previewPane: some View {
+        Group {
+            if let url = store.fileURL(for: liveDocument) {
+                DocumentPreview(url: url)
+            } else {
+                EmptyStateView(icon: "doc", title: "Preview unavailable")
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(SecretaryTheme.panel)
+        .clipShape(RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous)
+                .strokeBorder(SecretaryTheme.stroke, lineWidth: 1)
+        )
+    }
+    #endif
 
     private var header: some View {
         VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
@@ -448,16 +462,13 @@ struct DocumentDetailView: View {
         .buttonStyle(.plain)
     }
 
+    #if !os(macOS)
     @ViewBuilder
-    private func previewPane(
-        minHeight: CGFloat,
-        maxHeight: CGFloat,
-        fillsRemaining: Bool = false
-    ) -> some View {
+    private var compactPreview: some View {
         if let url = store.fileURL(for: liveDocument) {
             DocumentPreview(url: url)
-                .frame(maxWidth: .infinity, maxHeight: fillsRemaining ? .infinity : maxHeight)
-                .frame(minHeight: minHeight)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: SecretaryTheme.previewMinHeight, idealHeight: SecretaryTheme.previewIdealHeight, maxHeight: SecretaryTheme.previewMaxHeight)
                 .background(SecretaryTheme.panel)
                 .clipShape(RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous))
                 .overlay(
@@ -466,6 +477,7 @@ struct DocumentDetailView: View {
                 )
         }
     }
+    #endif
 
     private var metadataForm: some View {
         SecretaryPanel {
@@ -512,12 +524,11 @@ struct DocumentDetailView: View {
                 }
                 
                 Button {
-                    let tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                     store.saveMetadata(
                         liveDocument,
                         title: title,
                         notes: notes,
-                        tags: tags,
+                        tags: parsedTags(from: tagsText),
                         expiry: expiryEnabled ? expiryDate : nil
                     )
                 } label: {
@@ -648,8 +659,8 @@ struct DocumentDetailView: View {
         selectedSuggestionID = suggestion.id
         draftSpace = suggestion.space
         draftCategory = suggestion.category
-        draftType = suggestion.documentType
-        draftTitle = suggestion.shortTitle
+        draftType = ClassificationSuggester.cleanedDocumentType(suggestion.documentType)
+        draftTitle = ClassificationSuggester.cleanedDisplayTitle(suggestion.shortTitle, document: liveDocument)
         if let year = FolderSchema.normalizedYear(suggestion.year) {
             draftUseYear = true
             draftYear = year
@@ -659,13 +670,14 @@ struct DocumentDetailView: View {
         } else {
             draftUseYear = false
         }
+        applySuggestedTagsIfNeeded(preferred: suggestion.tags)
     }
 
     private func seedDraftFromDocument() {
         draftSpace = liveDocument.space ?? .personal
         draftCategory = liveDocument.category ?? draftCategories.first ?? "Tax"
         draftTitle = ClassificationSuggester.suggestedTitle(for: liveDocument)
-        draftType = "document"
+        draftType = ClassificationSuggester.cleanedDocumentType("document")
         if let year = FolderSchema.normalizedYear(TextFeaturesYear.detect(in: liveDocument) ?? liveDocument.year) {
             draftUseYear = true
             draftYear = year
@@ -679,14 +691,20 @@ struct DocumentDetailView: View {
         let category = ClassificationSuggester.sanitizeCategoryName(draftCategory)
         draftCategory = category
         store.ensureCategory(space: draftSpace, name: category)
+        let year = draftUseYear ? FolderSchema.normalizedYear(draftYear) : nil
+        let tags = parsedTags(from: tagsText)
+        let cleanTitle = ClassificationSuggester.cleanedDisplayTitle(draftTitle, document: liveDocument)
+        let cleanType = ClassificationSuggester.cleanedDocumentType(draftType)
+        draftTitle = cleanTitle
+        draftType = cleanType
         let target = ClassificationTarget(
             space: draftSpace,
             category: category,
-            year: draftUseYear ? FolderSchema.normalizedYear(draftYear) : nil,
-            documentType: draftType.isEmpty ? "document" : draftType,
-            shortTitle: draftTitle,
+            year: year,
+            documentType: cleanType,
+            shortTitle: cleanTitle,
             notes: liveDocument.notes,
-            tags: liveDocument.tags,
+            tags: tags,
             expiryDate: liveDocument.expiryDate
         )
         store.classify(document: liveDocument, as: target)
@@ -715,13 +733,41 @@ struct DocumentDetailView: View {
     private func syncFields() {
         title = liveDocument.title
         notes = liveDocument.notes
-        tagsText = liveDocument.tags.joined(separator: ", ")
+        if liveDocument.tags.isEmpty {
+            applySuggestedTagsIfNeeded()
+        } else {
+            tagsText = liveDocument.tags.joined(separator: ", ")
+            autoFilledTags = []
+        }
         if let expiry = liveDocument.expiryDate {
             expiryEnabled = true
             expiryDate = expiry
         } else {
             expiryEnabled = false
         }
+    }
+
+    private func parsedTags(from text: String) -> [String] {
+        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// Prefill the tags field from heuristics when the document has none, or refresh an earlier auto-fill.
+    private func applySuggestedTagsIfNeeded(preferred: [String] = []) {
+        let current = parsedTags(from: tagsText)
+        guard liveDocument.tags.isEmpty else { return }
+        guard current.isEmpty || current == autoFilledTags else { return }
+        let suggested = preferred.isEmpty
+            ? ClassificationSuggester.suggestedTags(
+                for: liveDocument,
+                space: isClassifying ? draftSpace : liveDocument.space,
+                category: isClassifying ? draftCategory : liveDocument.category,
+                year: isClassifying && draftUseYear ? draftYear : liveDocument.year,
+                documentType: isClassifying ? draftType : nil
+            )
+            : preferred
+        guard !suggested.isEmpty else { return }
+        tagsText = suggested.joined(separator: ", ")
+        autoFilledTags = suggested
     }
 }
 
@@ -921,6 +967,10 @@ struct ClassifySheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Move") {
                         let cleaned = ClassificationSuggester.sanitizeCategoryName(category)
+                        let title = ClassificationSuggester.cleanedDisplayTitle(
+                            shortTitle.isEmpty ? document.displayTitle : shortTitle,
+                            document: document
+                        )
                         store.ensureCategory(space: space, name: cleaned)
                         store.classify(
                             document: document,
@@ -928,8 +978,10 @@ struct ClassifySheet: View {
                                 space: space,
                                 category: cleaned,
                                 year: useYear ? FolderSchema.normalizedYear(year) : nil,
-                                documentType: documentType,
-                                shortTitle: shortTitle.isEmpty ? document.displayTitle : shortTitle
+                                documentType: ClassificationSuggester.cleanedDocumentType(documentType),
+                                shortTitle: title,
+                                notes: document.notes,
+                                tags: document.tags
                             )
                         )
                         dismiss()
