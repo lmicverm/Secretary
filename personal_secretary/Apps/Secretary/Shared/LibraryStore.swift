@@ -404,15 +404,31 @@ public final class LibraryStore: ObservableObject {
         }
     }
 
-    public func saveMetadata(_ document: DocumentRecord, title: String, notes: String, tags: [String], expiry: Date?) {
+    public func saveMetadata(
+        _ document: DocumentRecord,
+        title: String,
+        notes: String,
+        tags: [String],
+        expiry: Date?,
+        paymentStatus: PaymentStatus? = nil,
+        paidAt: Date? = nil
+    ) {
         guard let library else { return }
         do {
+            var status = paymentStatus
+            var paid = paidAt
+            if let status {
+                if status == .paid, paid == nil { paid = Date() }
+                if status != .paid { paid = nil }
+            }
             let updated = try library.updateMetadata(
                 documentID: document.id,
                 title: title,
                 notes: notes,
-                tags: tags,
-                expiryDate: .some(expiry)
+                tags: status?.syncedTags(tags) ?? tags,
+                expiryDate: .some(expiry),
+                paymentStatus: status,
+                paidAt: status == nil ? nil : .some(paid)
             )
             SpotlightIndexer.index(updated, fileURL: library.fileURL(for: updated))
             ExpiryReminderService.schedule(for: updated)

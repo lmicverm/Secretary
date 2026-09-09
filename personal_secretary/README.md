@@ -69,6 +69,10 @@ Filenames: `YYYY-MM-DD__type__short-title.ext`
 | Document scanner | — | VisionKit |
 | AgentMail ingest (email attachments) | yes | yes |
 | Classify (move into tree) | yes | yes |
+| Find in open PDF (⌘F) | yes | preview find bar |
+| Resizable detail split | yes (persisted) | stacked |
+| Category list grouped by year / type | yes | yes |
+| Invoice paid / unpaid | yes | yes |
 | Search (name, notes, OCR, FTS) | yes | yes |
 | Reveal in Finder / Open | yes | Share |
 | Favorites + iCloud download | yes | yes |
@@ -84,3 +88,9 @@ Filenames: `YYYY-MM-DD__type__short-title.ext`
 - [`Apps/ShareExtension`](Apps/ShareExtension) — “Save to Secretary”
 
 Files on disk are the source of truth. Use **Rebuild Index** if the database ever drifts.
+
+## Document understanding
+
+Classify uses an **on-device heuristic extractor** (filename + OCR, NaturalLanguage when present, Belgian invoice/tax patterns). It fills a clean title, document type, tags, optional amount / dates / correspondent. The filed name is always `YYYY-MM-DD__type__{slug(title)}.ext` from that cleaned title — never raw OCR tokens.
+
+**Apple Foundation Models** (Apple Intelligence) are *not* on the current deployment target (macOS 14 / iOS 17). `DocumentUnderstanding.extractAsync` will call them behind `#if canImport(FoundationModels)` + `#available` when the OS/SDK actually ships the API; until a deployment bump, the heuristic path is what runs, including Personal Team Debug builds. No cloud LLM is required.

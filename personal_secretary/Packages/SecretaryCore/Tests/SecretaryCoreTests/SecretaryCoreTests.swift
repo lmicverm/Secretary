@@ -340,6 +340,119 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(340, detailWidth: 900), 340)
         XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(400, detailWidth: 500), 500)
     }
+
+    func testCategoryListGroupsByYearThenType() {
+        let invoice2025 = DocumentRecord(
+            relativePath: "BV/Invoices/2025/2025-03-01__invoice__kbc.pdf",
+            filename: "2025-03-01__invoice__kbc.pdf",
+            space: .bv,
+            category: "Invoices",
+            year: 2025,
+            title: "KBC",
+            modifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        let policy2025 = DocumentRecord(
+            relativePath: "BV/Invoices/2025/2025-01-01__policy__home.pdf",
+            filename: "2025-01-01__policy__home.pdf",
+            space: .bv,
+            category: "Invoices",
+            year: 2025,
+            title: "Home",
+            modifiedAt: Date(timeIntervalSince1970: 50)
+        )
+        let invoice2024 = DocumentRecord(
+            relativePath: "BV/Invoices/2024/2024-06-01__invoice__engie.pdf",
+            filename: "2024-06-01__invoice__engie.pdf",
+            space: .bv,
+            category: "Invoices",
+            year: 2024,
+            title: "Engie",
+            modifiedAt: Date(timeIntervalSince1970: 10)
+        )
+        let sections = DocumentListGrouping.sections(from: [invoice2024, policy2025, invoice2025])
+        XCTAssertEqual(sections.map(\.title), ["2025 · Invoice", "2025 · Policy", "2024 · Invoice"])
+        XCTAssertEqual(sections[0].documents.map(\.title), ["KBC"])
+        XCTAssertTrue(DocumentListGrouping.shouldGroup(filter: DocumentFilter(space: .bv, category: "Invoices")))
+        XCTAssertFalse(DocumentListGrouping.shouldGroup(filter: DocumentFilter(inboxOnly: true)))
+        XCTAssertFalse(DocumentListGrouping.shouldGroup(filter: DocumentFilter(query: "kbc")))
+    }
+
+    func testUnderstandingExtractsInvoiceFieldsAndRejectsJunkTitle() {
+        let document = DocumentRecord(
+            relativePath: "Inbox/2024-01-01__import__pfo6d4aa.txt",
+            filename: "2024-01-01__import__pfo6d4aa.txt",
+            originalFilename: "PfO6D4aa.pdf",
+            title: "PfO6D4aa",
+            ocrText: """
+            KBC Bank
+            Factuur
+            Factuurdatum: 15/03/2024
+            Vervaldatum: 14/04/2024
+            Totaal te betalen: 1.234,56
+            """
+        )
+        let fields = DocumentUnderstanding.extract(
+            from: document,
+            preferredTitle: "PfO6D4aa",
+            preferredType: "import"
+        )
+        XCTAssertEqual(fields.source, .heuristic)
+        XCTAssertEqual(fields.documentType, "invoice")
+        XCTAssertTrue(fields.looksLikeInvoice)
+        XCTAssertFalse(fields.title.lowercased().contains("pfo6"))
+        XCTAssertEqual(fields.amount, Decimal(string: "1234.56"))
+        XCTAssertNotNil(fields.documentDate)
+        XCTAssertNotNil(fields.dueDate)
+        XCTAssertEqual(FolderSchema.sanitize(fields.title), FolderSchema.sanitize(fields.title))
+    }
+
+    func testClassifyFilenameMatchesCleanedTitleSlug() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryFile-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("junk.txt")
+        try """
+        KBC Bank
+        Factuur
+        Factuurdatum: 15/03/2024
+        Totaal: 89,00
+        """.write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "PfO6D4aa")
+        let withOCR = try library.updateMetadata(
+            documentID: imported.id,
+            ocrText: "KBC Bank\nFactuur\nFactuurdatum: 15/03/2024\nTotaal: 89,00"
+        )
+        let classified = try library.classify(
+            documentID: withOCR.id,
+            as: ClassificationTarget(
+                space: .bv,
+                category: "Invoices",
+                year: 2024,
+                documentType: "import",
+                shortTitle: "PfO6D4aa"
+            )
+        )
+        XCTAssertEqual(classified.title, DocumentUnderstanding.extract(from: withOCR, preferredTitle: "PfO6D4aa", preferredType: "import").title)
+        let stem = (classified.filename as NSString).deletingPathExtension
+        let parts = stem.split(separator: "__").map(String.init)
+        XCTAssertEqual(parts.count, 3, "Expected YYYY-MM-DD__type__slug, got \(classified.filename)")
+        XCTAssertEqual(parts[1], "invoice")
+        XCTAssertEqual(parts[2], FolderSchema.sanitize(classified.title))
+        XCTAssertTrue(classified.filename.hasPrefix("2024-03-15__") || classified.filename.hasPrefix("2024-"))
+        XCTAssertEqual(classified.paymentStatus, .unpaid)
+        XCTAssertTrue(classified.tags.contains { $0.lowercased() == "unpaid" })
+
+        let paid = try library.updateMetadata(
+            documentID: classified.id,
+            paymentStatus: .paid,
+            paidAt: .some(Date(timeIntervalSince1970: 1_700_000_000))
+        )
+        XCTAssertEqual(paid.paymentStatus, .paid)
+        XCTAssertNotNil(paid.paidAt)
+        XCTAssertTrue(paid.tags.contains { $0.lowercased() == "paid" })
+        XCTAssertFalse(paid.tags.contains { $0.lowercased() == "unpaid" })
+    }
 }
 
 /// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).

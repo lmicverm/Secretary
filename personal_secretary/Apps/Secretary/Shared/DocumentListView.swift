@@ -60,31 +60,17 @@ struct DocumentListView: View {
                     .frame(maxWidth: .infinity, minHeight: 280)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+                } else if DocumentListGrouping.shouldGroup(filter: store.filter) {
+                    ForEach(DocumentListGrouping.sections(from: store.documents)) { section in
+                        Section(section.title) {
+                            ForEach(section.documents) { doc in
+                                documentRow(doc)
+                            }
+                        }
+                    }
                 } else {
                     ForEach(store.documents) { doc in
-                        DocumentRow(document: doc)
-                            .tag(doc.id)
-                            .contextMenu {
-                                Button(doc.isInbox ? "Classify…" : "Reclassify…") {
-                                    selectedDocumentID = doc.id
-                                }
-                                Button(doc.isFavorite ? "Remove Favorite" : "Favorite") {
-                                    store.toggleFavorite(doc)
-                                }
-                                Button("Remove from app", role: .destructive) {
-                                    store.removeFromLibrary(doc)
-                                    if selectedDocumentID == doc.id {
-                                        selectedDocumentID = nil
-                                    }
-                                }
-                                #if os(macOS)
-                                if let url = store.fileURL(for: doc) {
-                                    Button("Reveal in Finder") {
-                                        NSWorkspace.shared.activateFileViewerSelecting([url])
-                                    }
-                                }
-                                #endif
-                            }
+                        documentRow(doc)
                     }
                 }
             }
@@ -142,6 +128,33 @@ struct DocumentListView: View {
         #else
         return "Import files, or drop them into the Drop folder."
         #endif
+    }
+
+    @ViewBuilder
+    private func documentRow(_ doc: DocumentRecord) -> some View {
+        DocumentRow(document: doc)
+            .tag(doc.id)
+            .contextMenu {
+                Button(doc.isInbox ? "Classify…" : "Reclassify…") {
+                    selectedDocumentID = doc.id
+                }
+                Button(doc.isFavorite ? "Remove Favorite" : "Favorite") {
+                    store.toggleFavorite(doc)
+                }
+                Button("Remove from app", role: .destructive) {
+                    store.removeFromLibrary(doc)
+                    if selectedDocumentID == doc.id {
+                        selectedDocumentID = nil
+                    }
+                }
+                #if os(macOS)
+                if let url = store.fileURL(for: doc) {
+                    Button("Reveal in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                }
+                #endif
+            }
     }
 
     private var title: String {
@@ -230,6 +243,9 @@ struct DocumentRow: View {
                         .foregroundStyle(SecretaryTheme.textTertiary)
                         .lineLimit(1)
                     
+                    if document.paymentStatus == .unpaid {
+                        unpaidBadge
+                    }
                     if let expiry = document.expiryDate {
                         expiryBadge(expiry)
                     }
@@ -252,6 +268,15 @@ struct DocumentRow: View {
             )
     }
     
+    private var unpaidBadge: some View {
+        Text("Unpaid")
+            .font(SecretaryTheme.Typography.metadata)
+            .foregroundStyle(SecretaryTheme.warn)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(SecretaryTheme.warnSoft, in: Capsule())
+    }
+
     @ViewBuilder
     private func expiryBadge(_ date: Date) -> some View {
         HStack(spacing: 3) {

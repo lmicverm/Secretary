@@ -41,8 +41,8 @@ public final class DocumentIndex: @unchecked Sendable {
             INSERT INTO documents (
                 id, relative_path, filename, space, category, year, title, notes, tags,
                 content_hash, ocr_text, is_favorite, expiry_date, file_size,
-                created_at, modified_at, indexed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, modified_at, indexed_at, payment_status, paid_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 relative_path=excluded.relative_path,
                 filename=excluded.filename,
@@ -59,7 +59,9 @@ public final class DocumentIndex: @unchecked Sendable {
                 file_size=excluded.file_size,
                 created_at=excluded.created_at,
                 modified_at=excluded.modified_at,
-                indexed_at=excluded.indexed_at;
+                indexed_at=excluded.indexed_at,
+                payment_status=excluded.payment_status,
+                paid_at=excluded.paid_at;
             """
             let stmt = try prepare(sql)
             defer { sqlite3_finalize(stmt) }
@@ -89,6 +91,12 @@ public final class DocumentIndex: @unchecked Sendable {
             sqlite3_bind_double(stmt, 15, record.createdAt.timeIntervalSince1970)
             sqlite3_bind_double(stmt, 16, record.modifiedAt.timeIntervalSince1970)
             sqlite3_bind_double(stmt, 17, record.indexedAt.timeIntervalSince1970)
+            bind(stmt, 18, record.paymentStatus.rawValue)
+            if let paidAt = record.paidAt {
+                sqlite3_bind_double(stmt, 19, paidAt.timeIntervalSince1970)
+            } else {
+                sqlite3_bind_null(stmt, 19)
+            }
 
             try stepDone(stmt)
 
@@ -249,12 +257,17 @@ public final class DocumentIndex: @unchecked Sendable {
             file_size INTEGER NOT NULL DEFAULT 0,
             created_at REAL NOT NULL,
             modified_at REAL NOT NULL,
-            indexed_at REAL NOT NULL
+            indexed_at REAL NOT NULL,
+            payment_status TEXT NOT NULL DEFAULT 'notApplicable',
+            paid_at REAL
         );
         """)
+        try addColumnIfMissing("payment_status", "TEXT NOT NULL DEFAULT 'notApplicable'")
+        try addColumnIfMissing("paid_at", "REAL")
         try exec("CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(content_hash);")
         try exec("CREATE INDEX IF NOT EXISTS idx_documents_space ON documents(space, category);")
         try exec("CREATE INDEX IF NOT EXISTS idx_documents_expiry ON documents(expiry_date);")
+        try exec("CREATE INDEX IF NOT EXISTS idx_documents_payment ON documents(payment_status);")
 
         // FTS5 external content-ish table keyed by id
         try exec("""
@@ -308,35 +321,72 @@ public final class DocumentIndex: @unchecked Sendable {
     }
 
     private func rowToRecord(_ stmt: OpaquePointer?) -> DocumentRecord {
-        func text(_ idx: Int32) -> String {
-            guard let c = sqlite3_column_text(stmt, idx) else { return "" }
+        func idx(_ name: String) -> Int32 {
+            columnIndex(stmt, name) ?? -1
+        }
+        func text(_ name: String) -> String {
+            let i = idx(name)
+            guard i >= 0, let c = sqlite3_column_text(stmt, i) else { return "" }
             return String(cString: c)
         }
-        func optText(_ idx: Int32) -> String? {
-            guard sqlite3_column_type(stmt, idx) != SQLITE_NULL else { return nil }
-            return text(idx)
+        func optText(_ name: String) -> String? {
+            let i = idx(name)
+            guard i >= 0, sqlite3_column_type(stmt, i) != SQLITE_NULL else { return nil }
+            return text(name)
         }
-        let tags = text(8).split(separator: ",").map(String.init).filter { !$0.isEmpty }
-        let spaceRaw = optText(3)
+        func optDate(_ name: String) -> Date? {
+            let i = idx(name)
+            guard i >= 0, sqlite3_column_type(stmt, i) != SQLITE_NULL else { return nil }
+            return Date(timeIntervalSince1970: sqlite3_column_double(stmt, i))
+        }
+        func optInt(_ name: String) -> Int? {
+            let i = idx(name)
+            guard i >= 0, sqlite3_column_type(stmt, i) != SQLITE_NULL else { return nil }
+            return Int(sqlite3_column_int(stmt, i))
+        }
+        let tags = text("tags").split(separator: ",").map(String.init).filter { !$0.isEmpty }
+        let spaceRaw = optText("space")
+        let payment = PaymentStatus(rawValue: text("payment_status")) ?? .notApplicable
         return DocumentRecord(
-            id: text(0),
-            relativePath: text(1),
-            filename: text(2),
+            id: text("id"),
+            relativePath: text("relative_path"),
+            filename: text("filename"),
             space: spaceRaw.flatMap(DocumentSpace.init(rawValue:)),
-            category: optText(4),
-            year: sqlite3_column_type(stmt, 5) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 5)),
-            title: text(6),
-            notes: text(7),
+            category: optText("category"),
+            year: optInt("year"),
+            title: text("title"),
+            notes: text("notes"),
             tags: tags,
-            contentHash: optText(9),
-            ocrText: text(10),
-            isFavorite: sqlite3_column_int(stmt, 11) == 1,
-            expiryDate: sqlite3_column_type(stmt, 12) == SQLITE_NULL ? nil : Date(timeIntervalSince1970: sqlite3_column_double(stmt, 12)),
-            fileSize: sqlite3_column_int64(stmt, 13),
-            createdAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 14)),
-            modifiedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 15)),
-            indexedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 16))
+            contentHash: optText("content_hash"),
+            ocrText: text("ocr_text"),
+            isFavorite: idx("is_favorite") >= 0 && sqlite3_column_int(stmt, idx("is_favorite")) == 1,
+            expiryDate: optDate("expiry_date"),
+            fileSize: idx("file_size") >= 0 ? sqlite3_column_int64(stmt, idx("file_size")) : 0,
+            createdAt: optDate("created_at") ?? Date(),
+            modifiedAt: optDate("modified_at") ?? Date(),
+            indexedAt: optDate("indexed_at") ?? Date(),
+            paymentStatus: payment,
+            paidAt: optDate("paid_at")
         )
+    }
+
+    private func columnIndex(_ stmt: OpaquePointer?, _ name: String) -> Int32? {
+        guard let stmt else { return nil }
+        let count = sqlite3_column_count(stmt)
+        for i in 0..<count {
+            if let raw = sqlite3_column_name(stmt, i), String(cString: raw) == name {
+                return i
+            }
+        }
+        return nil
+    }
+
+    private func addColumnIfMissing(_ name: String, _ definition: String) throws {
+        do {
+            try exec("ALTER TABLE documents ADD COLUMN \(name) \(definition);")
+        } catch {
+            // Duplicate column on existing libraries is expected.
+        }
     }
 
     private func prepare(_ sql: String) throws -> OpaquePointer? {

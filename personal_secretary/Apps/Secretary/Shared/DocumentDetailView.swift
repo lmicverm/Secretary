@@ -16,7 +16,9 @@ struct DocumentDetailView: View {
     @State private var tagsText: String = ""
     @State private var expiryEnabled = false
     @State private var expiryDate = Date()
-    @State private var showClassify = false
+    @State private var paymentStatus: PaymentStatus = .notApplicable
+    @State private var paidAt = Date()
+    @State private var showExtractedText = false
     @State private var duplicates: [DocumentRecord] = []
     @State private var suggestions: [ClassificationSuggestion] = []
     @State private var showReclassifyPanel = false
@@ -101,13 +103,49 @@ struct DocumentDetailView: View {
             }
             applySuggestedTagsIfNeeded()
         }
-        .sheet(isPresented: $showClassify) {
-            ClassifySheet(document: liveDocument)
-                .environmentObject(store)
-                #if os(macOS)
-                .frame(width: 480, height: 560)
-                #endif
+        .sheet(isPresented: $showExtractedText) {
+            extractedTextSheet
         }
+    }
+
+    private var extractedTextSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingLG) {
+                    if liveDocument.ocrText.isEmpty {
+                        Text("No extracted text yet.")
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                    } else {
+                        Text(liveDocument.ocrText)
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .textSelection(.enabled)
+                    }
+                    if !liveDocument.notes.isEmpty {
+                        Text("Notes")
+                            .font(SecretaryTheme.Typography.captionBold)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                        Text(liveDocument.notes)
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(SecretaryTheme.spacingLG)
+            }
+            .navigationTitle("Extracted text")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showExtractedText = false }
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(width: 520, height: 480)
+        #endif
     }
 
     private var isPDFPreview: Bool {
@@ -395,6 +433,16 @@ struct DocumentDetailView: View {
                     }
                 }
 
+                if let summary = DocumentUnderstanding.extract(
+                    from: liveDocument,
+                    preferredTitle: draftTitle,
+                    preferredType: draftType
+                ).summaryLine {
+                    Text(summary)
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                }
+
                 HStack(spacing: SecretaryTheme.spacingSM) {
                     Button {
                         applyDraft()
@@ -407,11 +455,39 @@ struct DocumentDetailView: View {
                     .controlSize(.regular)
                     .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                    Button("More…") { showClassify = true }
-                        .buttonStyle(.bordered)
+                    extrasMenu
                 }
             }
         }
+    }
+
+    private var extrasMenu: some View {
+        Menu {
+            Button("Ignore this file") {
+                store.removeFromLibrary(liveDocument)
+            }
+            Button("Show extracted text") {
+                showExtractedText = true
+            }
+            if let url = store.fileURL(for: liveDocument) {
+                #if os(macOS)
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+                Button("Copy path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.path, forType: .string)
+                }
+                #else
+                Button("Copy path") {
+                    UIPasteboard.general.string = url.path
+                }
+                #endif
+            }
+        } label: {
+            Text("More")
+        }
+        .buttonStyle(.bordered)
     }
 
     private func suggestionRow(_ suggestion: ClassificationSuggestion) -> some View {
@@ -526,6 +602,20 @@ struct DocumentDetailView: View {
                             .labelsHidden()
                     }
                 }
+
+                if showsPaymentControls {
+                    HStack(spacing: SecretaryTheme.spacingMD) {
+                        Toggle("Paid", isOn: Binding(
+                            get: { paymentStatus == .paid },
+                            set: { paymentStatus = $0 ? .paid : .unpaid }
+                        ))
+                        .font(SecretaryTheme.Typography.caption)
+                        if paymentStatus == .paid {
+                            DatePicker("", selection: $paidAt, displayedComponents: .date)
+                                .labelsHidden()
+                        }
+                    }
+                }
                 
                 Button {
                     store.saveMetadata(
@@ -533,7 +623,9 @@ struct DocumentDetailView: View {
                         title: title,
                         notes: notes,
                         tags: parsedTags(from: tagsText),
-                        expiry: expiryEnabled ? expiryDate : nil
+                        expiry: expiryEnabled ? expiryDate : nil,
+                        paymentStatus: showsPaymentControls ? paymentStatus : liveDocument.paymentStatus,
+                        paidAt: showsPaymentControls && paymentStatus == .paid ? paidAt : nil
                     )
                 } label: {
                     Text("Save")
@@ -680,8 +772,9 @@ struct DocumentDetailView: View {
     private func seedDraftFromDocument() {
         draftSpace = liveDocument.space ?? .personal
         draftCategory = liveDocument.category ?? draftCategories.first ?? "Tax"
-        draftTitle = ClassificationSuggester.suggestedTitle(for: liveDocument)
-        draftType = ClassificationSuggester.cleanedDocumentType("document")
+        let fields = DocumentUnderstanding.extract(from: liveDocument)
+        draftTitle = fields.title
+        draftType = fields.documentType
         if let year = FolderSchema.normalizedYear(TextFeaturesYear.detect(in: liveDocument) ?? liveDocument.year) {
             draftUseYear = true
             draftYear = year
@@ -691,14 +784,29 @@ struct DocumentDetailView: View {
         }
     }
 
+    private var showsPaymentControls: Bool {
+        paymentStatus == .paid || paymentStatus == .unpaid || DocumentUnderstanding.looksLikeInvoice(
+            text: [liveDocument.filename, liveDocument.title, liveDocument.ocrText, draftType, tagsText].joined(separator: "\n"),
+            documentType: draftType.isEmpty ? nil : draftType,
+            tags: parsedTags(from: tagsText) + liveDocument.tags,
+            category: liveDocument.category ?? draftCategory
+        )
+    }
+
     private func applyDraft() {
         let category = ClassificationSuggester.sanitizeCategoryName(draftCategory)
         draftCategory = category
         store.ensureCategory(space: draftSpace, name: category)
         let year = draftUseYear ? FolderSchema.normalizedYear(draftYear) : nil
         let tags = parsedTags(from: tagsText)
-        let cleanTitle = ClassificationSuggester.cleanedDisplayTitle(draftTitle, document: liveDocument)
-        let cleanType = ClassificationSuggester.cleanedDocumentType(draftType)
+        let fields = DocumentUnderstanding.extract(
+            from: liveDocument,
+            preferredTitle: draftTitle,
+            preferredType: draftType,
+            preferredTags: tags
+        )
+        let cleanTitle = fields.title
+        let cleanType = fields.documentType
         draftTitle = cleanTitle
         draftType = cleanType
         let target = ClassificationTarget(
@@ -709,7 +817,8 @@ struct DocumentDetailView: View {
             shortTitle: cleanTitle,
             notes: liveDocument.notes,
             tags: tags,
-            expiryDate: liveDocument.expiryDate
+            expiryDate: liveDocument.expiryDate ?? fields.dueDate,
+            documentDate: fields.documentDate
         )
         store.classify(document: liveDocument, as: target)
         showReclassifyPanel = false
@@ -748,6 +857,17 @@ struct DocumentDetailView: View {
             expiryDate = expiry
         } else {
             expiryEnabled = false
+        }
+        paymentStatus = liveDocument.paymentStatus
+        paidAt = liveDocument.paidAt ?? Date()
+        if paymentStatus == .notApplicable,
+           DocumentUnderstanding.looksLikeInvoice(
+            text: [liveDocument.filename, liveDocument.title, liveDocument.ocrText].joined(separator: "\n"),
+            documentType: FolderSchema.documentType(fromFilename: liveDocument.filename),
+            tags: liveDocument.tags,
+            category: liveDocument.category
+           ) {
+            paymentStatus = .unpaid
         }
     }
 
@@ -1066,9 +1186,11 @@ struct ClassifySheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Move") {
                         let cleaned = ClassificationSuggester.sanitizeCategoryName(category)
-                        let title = ClassificationSuggester.cleanedDisplayTitle(
-                            shortTitle.isEmpty ? document.displayTitle : shortTitle,
-                            document: document
+                        let fields = DocumentUnderstanding.extract(
+                            from: document,
+                            preferredTitle: shortTitle.isEmpty ? document.displayTitle : shortTitle,
+                            preferredType: documentType,
+                            preferredTags: document.tags
                         )
                         store.ensureCategory(space: space, name: cleaned)
                         store.classify(
@@ -1077,10 +1199,11 @@ struct ClassifySheet: View {
                                 space: space,
                                 category: cleaned,
                                 year: useYear ? FolderSchema.normalizedYear(year) : nil,
-                                documentType: ClassificationSuggester.cleanedDocumentType(documentType),
-                                shortTitle: title,
+                                documentType: fields.documentType,
+                                shortTitle: fields.title,
                                 notes: document.notes,
-                                tags: document.tags
+                                tags: document.tags,
+                                documentDate: fields.documentDate
                             )
                         )
                         dismiss()
