@@ -191,7 +191,7 @@ public enum ClassificationSuggester {
             .prefix(limit)
             .map { acc in
                 let type = cleanedDocumentType(acc.documentType)
-                ClassificationSuggestion(
+                return ClassificationSuggestion(
                     space: acc.space,
                     category: acc.category,
                     year: FolderSchema.normalizedYear(acc.year),
