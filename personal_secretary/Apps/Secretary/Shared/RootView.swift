@@ -96,11 +96,11 @@ struct RootView: View {
         .overlay(alignment: .bottom) {
             if let status = store.statusMessage {
                 Text(status)
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .padding(.bottom, 16)
+                    .font(SecretaryTheme.Typography.captionMedium)
+                    .padding(.horizontal, SecretaryTheme.spacingLG)
+                    .padding(.vertical, SecretaryTheme.spacingSM)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: SecretaryTheme.radius, style: .continuous))
+                    .padding(.bottom, SecretaryTheme.spacingLG)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .onTapGesture { store.statusMessage = nil }
             }
@@ -114,19 +114,11 @@ struct RootView: View {
     }
 
     private var emptyDetail: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text("Select a document")
-                .font(.title3.weight(.semibold))
-            Text("Choose something from the list, or open Inbox to classify new files.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "doc.text.magnifyingglass",
+            title: "Select a document",
+            description: "Choose something from the list, or open Inbox to classify new files."
+        )
     }
 }
 
@@ -136,26 +128,43 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            Section("Quick") {
-                navRow("All documents", systemImage: "tray.full", destination: .all)
-                navRow("Inbox (\(store.inboxCount))", systemImage: "tray", destination: .inbox)
-                navRow("Favorites", systemImage: "star.fill", destination: .favorites)
-                navRow("Expiring", systemImage: "calendar.badge.exclamationmark", destination: .expiring)
+            Section {
+                navRow("All documents", systemImage: "doc.text", destination: .all)
+                inboxRow
+                navRow("Favorites", systemImage: "star", destination: .favorites)
+                expiringRow
+            } header: {
+                Text("Library")
+                    .sectionHeaderStyle()
             }
 
-            Section("Personal") {
+            Section {
                 ForEach(store.personalCategories, id: \.self) { name in
-                    navRow(name, systemImage: "person", destination: .category(.personal, name))
+                    navRow(name, systemImage: "folder", destination: .category(.personal, name))
                 }
+            } header: {
+                HStack(spacing: SecretaryTheme.spacingXS) {
+                    Image(systemName: "person")
+                        .font(.caption2)
+                    Text("Personal")
+                }
+                .sectionHeaderStyle()
             }
 
-            Section("BV") {
+            Section {
                 ForEach(store.bvCategories, id: \.self) { name in
-                    navRow(name, systemImage: "building.2", destination: .category(.bv, name))
+                    navRow(name, systemImage: "folder", destination: .category(.bv, name))
                 }
+            } header: {
+                HStack(spacing: SecretaryTheme.spacingXS) {
+                    Image(systemName: "building.2")
+                        .font(.caption2)
+                    Text("Business")
+                }
+                .sectionHeaderStyle()
             }
 
-            Section("Intake") {
+            Section {
                 #if os(iOS)
                 ScanDocumentsButton()
                 #endif
@@ -165,17 +174,26 @@ struct SidebarView: View {
                 } label: {
                     Label("Open Drop folder", systemImage: "folder")
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(SecretaryTheme.textSecondary)
                 #endif
                 Button {
                     Task { await store.scanDropFolder() }
                 } label: {
-                    Label("Scan Drop", systemImage: "arrow.down.doc")
+                    Label("Scan Drop folder", systemImage: "arrow.down.doc")
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(SecretaryTheme.textSecondary)
                 Button {
                     Task { await store.checkMailbox() }
                 } label: {
                     Label("Check mailbox", systemImage: "envelope")
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(SecretaryTheme.textSecondary)
+            } header: {
+                Text("Intake")
+                    .sectionHeaderStyle()
             }
 
             Section {
@@ -186,15 +204,50 @@ struct SidebarView: View {
                     Label("Settings", systemImage: "gearshape")
                 }
                 #endif
-                LabeledContent("Storage") {
+                HStack {
+                    Label("Storage", systemImage: "externaldrive")
+                    Spacer()
                     Text(store.usingCustomRoot ? "Custom" : (store.usingiCloud ? "iCloud" : "Local"))
-                        .foregroundStyle(.secondary)
+                        .font(SecretaryTheme.Typography.caption)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
                 }
+                .foregroundStyle(SecretaryTheme.textSecondary)
             }
         }
         .listStyle(.sidebar)
         .navigationTitle("Secretary")
         .tint(SecretaryTheme.accent)
+    }
+
+    private var inboxRow: some View {
+        NavigationLink(value: SidebarDestination.inbox) {
+            HStack {
+                Label("Inbox", systemImage: "tray")
+                Spacer()
+                if store.inboxCount > 0 {
+                    Text("\(store.inboxCount)")
+                        .font(SecretaryTheme.Typography.captionMedium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(SecretaryTheme.accent)
+                        )
+                }
+            }
+        }
+        .tag(SidebarDestination.inbox)
+    }
+    
+    private var expiringRow: some View {
+        NavigationLink(value: SidebarDestination.expiring) {
+            HStack {
+                Label("Expiring", systemImage: "calendar.badge.clock")
+                Spacer()
+            }
+        }
+        .tag(SidebarDestination.expiring)
     }
 
     private func navRow(_ title: String, systemImage: String, destination: SidebarDestination) -> some View {

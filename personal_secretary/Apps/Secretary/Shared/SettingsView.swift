@@ -27,7 +27,7 @@ struct SettingsView: View {
                 .tabItem { Label("Mailbox", systemImage: "envelope") }
         }
         #if os(macOS)
-        .frame(width: 500, height: 440)
+        .frame(width: 520, height: 480)
         #endif
         .tint(SecretaryTheme.accent)
     }
@@ -37,91 +37,152 @@ struct SettingsView: View {
             Section {
                 LabeledContent("Path") {
                     Text(store.rootPath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
                         .lineLimit(2)
                         .textSelection(.enabled)
-                        .frame(maxWidth: 260, alignment: .trailing)
+                        .frame(maxWidth: 280, alignment: .trailing)
                 }
                 LabeledContent("Source") {
                     Text(store.usingCustomRoot ? "Custom folder" : (store.usingiCloud ? "iCloud Drive" : "Local"))
+                        .font(SecretaryTheme.Typography.caption)
+                        .foregroundStyle(SecretaryTheme.textSecondary)
                 }
                 #if os(macOS)
-                Button("Choose library folder…") {
+                Button {
                     store.chooseLibraryRoot()
+                } label: {
+                    Text("Choose library folder…")
+                        .font(SecretaryTheme.Typography.caption)
                 }
+                .buttonStyle(.bordered)
+                
                 if store.usingCustomRoot {
-                    Button("Reset to default location") {
+                    Button {
                         store.resetLibraryRootToDefault()
+                    } label: {
+                        Text("Reset to default")
+                            .font(SecretaryTheme.Typography.caption)
                     }
+                    .buttonStyle(.bordered)
                 }
                 #endif
             } header: {
                 Text("Location")
             }
 
-            Section("Index") {
-                Button("Index pending documents") {
+            Section {
+                Button {
                     Task { await store.indexPendingDocuments() }
+                } label: {
+                    Label("Index pending documents", systemImage: "arrow.triangle.2.circlepath")
+                        .font(SecretaryTheme.Typography.caption)
                 }
-                Button("Rebuild index (OCR + search)") {
+                .buttonStyle(.bordered)
+                
+                Button {
                     store.rebuildIndex()
+                } label: {
+                    Label("Rebuild full index", systemImage: "arrow.clockwise")
+                        .font(SecretaryTheme.Typography.caption)
                 }
+                .buttonStyle(.bordered)
+            } header: {
+                Text("Index")
+            } footer: {
+                Text("Rebuilding re-runs OCR and recreates the search index.")
+                    .font(SecretaryTheme.Typography.metadata)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
             }
 
-            Section("Category") {
+            Section {
                 Picker("Space", selection: $newCategorySpace) {
                     ForEach(DocumentSpace.allCases) { Text($0.displayName).tag($0) }
                 }
+                .font(SecretaryTheme.Typography.caption)
+                
                 TextField("New category name", text: $newCategoryName)
-                Button("Create folder") {
+                    .font(SecretaryTheme.Typography.bodySecondary)
+                
+                Button {
                     let name = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty else { return }
                     store.addCategory(space: newCategorySpace, name: name)
                     newCategoryName = ""
+                } label: {
+                    Label("Create folder", systemImage: "folder.badge.plus")
+                        .font(SecretaryTheme.Typography.caption)
                 }
+                .buttonStyle(.bordered)
+                .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } header: {
+                Text("Categories")
             }
 
             Section {
-                LabeledContent("Version", value: SecretaryCoreInfo.version)
+                HStack {
+                    Text("Version")
+                        .foregroundStyle(SecretaryTheme.textSecondary)
+                    Spacer()
+                    Text(SecretaryCoreInfo.version)
+                        .font(SecretaryTheme.Typography.metadataMono)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                }
+                .font(SecretaryTheme.Typography.caption)
             }
         }
         .formStyle(.grouped)
-        .padding(8)
+        .padding(SecretaryTheme.spacingSM)
     }
 
     private var intakeTab: some View {
         Form {
             Section {
-                Text("Put PDFs or photos in the Drop folder. Secretary moves them into Inbox when the app opens or when you scan.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                #if os(macOS)
-                Button("Open Drop folder in Finder") {
-                    store.revealDropFolder()
-                }
-                #endif
-                Button("Scan Drop folder now") {
-                    Task { await store.scanDropFolder() }
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                    Text("Put PDFs or photos in the Drop folder. Secretary moves them into Inbox when the app opens or when you scan.")
+                        .font(SecretaryTheme.Typography.caption)
+                        .foregroundStyle(SecretaryTheme.textSecondary)
+                    
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        #if os(macOS)
+                        Button {
+                            store.revealDropFolder()
+                        } label: {
+                            Label("Open in Finder", systemImage: "folder")
+                                .font(SecretaryTheme.Typography.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        #endif
+                        
+                        Button {
+                            Task { await store.scanDropFolder() }
+                        } label: {
+                            Label("Scan now", systemImage: "arrow.down.doc")
+                                .font(SecretaryTheme.Typography.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SecretaryTheme.accent)
+                    }
                 }
             } header: {
                 Text("Drop folder")
             }
         }
         .formStyle(.grouped)
-        .padding(8)
+        .padding(SecretaryTheme.spacingSM)
     }
 
     private var mailboxTab: some View {
         Form {
             Section {
                 Text("Send documents to a dedicated AgentMail address. Attachments (PDFs, images, Office docs) import into Inbox.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .font(SecretaryTheme.Typography.caption)
+                    .foregroundStyle(SecretaryTheme.textSecondary)
             }
             
-            Section("API Key") {
+            Section {
                 SecureField("AgentMail API key", text: $apiKey)
+                    .font(SecretaryTheme.Typography.bodySecondary)
                     .textContentType(.password)
                     .autocorrectionDisabled()
                 #if os(iOS)
@@ -129,50 +190,83 @@ struct SettingsView: View {
                 #endif
                 
                 if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Label("Get an API key at agentmail.to", systemImage: "key")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Image(systemName: "key")
+                            .foregroundStyle(SecretaryTheme.accent)
+                        Text("Get an API key at agentmail.to")
+                    }
+                    .font(SecretaryTheme.Typography.caption)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
                 } else {
-                    HStack {
-                        Button("Save API key") {
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Button {
                             saveAPIKey()
+                        } label: {
+                            Label("Save key", systemImage: "checkmark")
+                                .font(SecretaryTheme.Typography.captionMedium)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SecretaryTheme.accent)
                         .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         
                         if MailboxSettings.apiKey != nil {
-                            Button("Clear", role: .destructive) {
+                            Button(role: .destructive) {
                                 clearAPIKey()
+                            } label: {
+                                Label("Clear", systemImage: "xmark")
+                                    .font(SecretaryTheme.Typography.captionMedium)
                             }
+                            .buttonStyle(.bordered)
                         }
                     }
                 }
+            } header: {
+                Text("API Key")
             }
             
-            Section("Inbox") {
+            Section {
                 if MailboxSettings.apiKey == nil {
-                    Text("Add an API key first")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                        Text("Add an API key first")
+                    }
+                    .font(SecretaryTheme.Typography.caption)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
                 } else if isLoadingInboxes {
-                    HStack {
+                    HStack(spacing: SecretaryTheme.spacingSM) {
                         ProgressView()
                             .controlSize(.small)
                         Text("Loading inboxes…")
-                            .foregroundStyle(.secondary)
+                            .font(SecretaryTheme.Typography.caption)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
                     }
                 } else if availableInboxes.isEmpty {
                     TextField("New inbox username", text: $mailboxUsername)
+                        .font(SecretaryTheme.Typography.bodySecondary)
                         .autocorrectionDisabled()
                     #if os(iOS)
                         .textInputAutocapitalization(.never)
                     #endif
-                    Button("Create inbox") {
-                        Task { await createInbox() }
-                    }
-                    .disabled(mailboxUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     
-                    Button("Refresh inbox list") {
-                        Task { await loadInboxes() }
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Button {
+                            Task { await createInbox() }
+                        } label: {
+                            Label("Create inbox", systemImage: "plus")
+                                .font(SecretaryTheme.Typography.captionMedium)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(SecretaryTheme.accent)
+                        .disabled(mailboxUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        
+                        Button {
+                            Task { await loadInboxes() }
+                        } label: {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                                .font(SecretaryTheme.Typography.captionMedium)
+                        }
+                        .buttonStyle(.bordered)
                     }
                 } else {
                     Picker("Select inbox", selection: $selectedInboxId) {
@@ -182,117 +276,158 @@ struct SettingsView: View {
                                 .tag(inbox.inboxId)
                         }
                     }
+                    .font(SecretaryTheme.Typography.caption)
                     .onChange(of: selectedInboxId) { _, newValue in
                         selectInbox(newValue)
                     }
                     
                     if let email = MailboxSettings.inboxEmail, !email.isEmpty {
-                        LabeledContent("Current address") {
+                        HStack {
+                            Text("Active address")
+                                .font(SecretaryTheme.Typography.caption)
+                                .foregroundStyle(SecretaryTheme.textSecondary)
+                            Spacer()
                             Text(email)
                                 .textSelection(.enabled)
-                                .font(.caption.monospaced())
+                                .font(SecretaryTheme.Typography.metadataMono)
+                                .foregroundStyle(SecretaryTheme.accent)
                         }
                     }
                     
-                    HStack {
+                    HStack(spacing: SecretaryTheme.spacingSM) {
                         TextField("Or create new", text: $mailboxUsername)
+                            .font(SecretaryTheme.Typography.caption)
                             .autocorrectionDisabled()
                         #if os(iOS)
                             .textInputAutocapitalization(.never)
                         #endif
-                        Button("Create") {
+                        
+                        Button {
                             Task { await createInbox() }
+                        } label: {
+                            Text("Create")
+                                .font(SecretaryTheme.Typography.captionMedium)
                         }
+                        .buttonStyle(.bordered)
                         .disabled(mailboxUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     
-                    Button("Refresh list") {
+                    Button {
                         Task { await loadInboxes() }
+                    } label: {
+                        Label("Refresh list", systemImage: "arrow.clockwise")
+                            .font(SecretaryTheme.Typography.caption)
                     }
+                    .buttonStyle(.bordered)
                 }
+            } header: {
+                Text("Inbox")
             }
             
-            Section("Fetch Attachments") {
+            Section {
                 if !MailboxSettings.isConfigured {
-                    Text("Configure API key and inbox first")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                        Text("Configure API key and inbox first")
+                    }
+                    .font(SecretaryTheme.Typography.caption)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
                 } else {
-                    HStack {
-                        Button {
-                            Task { await fetchMailAttachments() }
-                        } label: {
+                    Button {
+                        Task { await fetchMailAttachments() }
+                    } label: {
+                        HStack(spacing: SecretaryTheme.spacingSM) {
                             if isFetchingMail {
                                 ProgressView()
                                     .controlSize(.small)
                             } else {
-                                Label("Fetch mail attachments", systemImage: "arrow.down.doc")
+                                Image(systemName: "arrow.down.doc")
                             }
+                            Text("Fetch mail attachments")
                         }
-                        .disabled(isFetchingMail)
+                        .font(SecretaryTheme.Typography.captionMedium)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SecretaryTheme.accent)
+                    .disabled(isFetchingMail)
                     
                     if let result = store.lastMailIngestResult {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Label("\(result.imported)", systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                Text("imported")
-                                    .foregroundStyle(.secondary)
-                            }
+                        VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                            resultRow(
+                                count: result.imported,
+                                icon: "checkmark.circle.fill",
+                                label: "imported",
+                                color: SecretaryTheme.success
+                            )
+                            
                             if result.skippedDuplicate > 0 {
-                                HStack {
-                                    Label("\(result.skippedDuplicate)", systemImage: "doc.on.doc")
-                                        .foregroundStyle(.orange)
-                                    Text("skipped (duplicate)")
-                                        .foregroundStyle(.secondary)
-                                }
+                                resultRow(
+                                    count: result.skippedDuplicate,
+                                    icon: "doc.on.doc",
+                                    label: "skipped (duplicate)",
+                                    color: SecretaryTheme.warn
+                                )
                             }
+                            
                             if result.skippedUnsupported > 0 {
-                                HStack {
-                                    Label("\(result.skippedUnsupported)", systemImage: "xmark.circle")
-                                        .foregroundStyle(.gray)
-                                    Text("skipped (unsupported)")
-                                        .foregroundStyle(.secondary)
-                                }
+                                resultRow(
+                                    count: result.skippedUnsupported,
+                                    icon: "xmark.circle",
+                                    label: "skipped (unsupported)",
+                                    color: SecretaryTheme.textTertiary
+                                )
                             }
+                            
                             if !result.errors.isEmpty {
-                                HStack {
-                                    Label("\(result.errors.count)", systemImage: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.red)
-                                    Text("error(s)")
-                                        .foregroundStyle(.secondary)
-                                }
+                                resultRow(
+                                    count: result.errors.count,
+                                    icon: "exclamationmark.triangle.fill",
+                                    label: "error(s)",
+                                    color: .red
+                                )
                             }
                         }
-                        .font(.caption)
+                        .padding(.top, SecretaryTheme.spacingXS)
                     }
                 }
+            } header: {
+                Text("Fetch Attachments")
             }
             
             if let error = mailboxError {
                 Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .font(.callout)
+                    StatusBanner(message: error, style: .error)
                 }
             }
             
             if let success = mailboxSuccess {
                 Section {
-                    Label(success, systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
-                        .font(.callout)
+                    StatusBanner(message: success, style: .success)
                 }
             }
         }
         .formStyle(.grouped)
-        .padding(8)
+        .padding(SecretaryTheme.spacingSM)
         .onAppear {
             if MailboxSettings.apiKey != nil && availableInboxes.isEmpty {
                 Task { await loadInboxes() }
             }
         }
+    }
+    
+    private func resultRow(count: Int, icon: String, label: String, color: Color) -> some View {
+        HStack(spacing: SecretaryTheme.spacingSM) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+            Text("\(count)")
+                .font(SecretaryTheme.Typography.captionMedium)
+                .foregroundStyle(SecretaryTheme.textPrimary)
+            Text(label)
+                .font(SecretaryTheme.Typography.caption)
+                .foregroundStyle(SecretaryTheme.textTertiary)
+        }
+        .font(SecretaryTheme.Typography.caption)
     }
     
     private func saveAPIKey() {
