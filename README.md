@@ -8,8 +8,8 @@ Documents live as real files in a Finder/Files-visible folder tree. Classificati
 
 See [`personal_secretary/README.md`](personal_secretary/README.md) for:
 
-- Requirements (Xcode, Apple ID, iCloud container)
-- How to open and run the project
+- Requirements (Xcode, Personal Team vs paid Apple Developer)
+- How to run scheme **SecretaryMac** (Debug = local library; Release/paid team = iCloud)
 - Library layout and naming conventions
 - Feature matrix (Mac vs iOS)
 - Architecture overview

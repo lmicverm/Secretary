@@ -1,7 +1,10 @@
 import Foundation
 
 /// Resolves the on-disk library root.
-/// Prefer a user-chosen folder (security-scoped bookmark); else iCloud Drive; else Application Support.
+/// Prefer a user-chosen folder (security-scoped bookmark); else iCloud Drive when the
+/// container entitlement is present and the container exists; else Application Support.
+/// Mac Debug (Personal Team) ships without the iCloud entitlement, so `url(forUbiquityContainerIdentifier:)`
+/// returns nil and bootstrap uses the local Application Support library.
 public enum LibraryLocation {
     public static let folderName = "Secretary"
     public static let ubiquityContainerIdentifier = "iCloud.be.vermeir.secretary"

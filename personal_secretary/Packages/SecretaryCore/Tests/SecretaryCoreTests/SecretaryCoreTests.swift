@@ -117,6 +117,18 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: library.fileURL(for: record).path))
     }
 
+    func testResolveRootFallsBackWithoutiCloudContainer() {
+        LibraryLocation.clearCustomRoot()
+        // Without a ubiquity container (Personal Team / missing entitlement), resolveRoot
+        // must still return a usable Application Support path.
+        let noCloud = NoUbiquityFileManager()
+        let root = LibraryLocation.resolveRoot(fileManager: noCloud)
+        let expected = noCloud.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(LibraryLocation.folderName, isDirectory: true)
+        XCTAssertEqual(root.path, expected.path)
+        XCTAssertFalse(root.path.contains("Mobile Documents"))
+    }
+
     func testParsePath() {
         let inbox = FolderSchema.parsePath("Inbox/foo.pdf")
         XCTAssertTrue(inbox.isInbox)
@@ -125,5 +137,12 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.space, .personal)
         XCTAssertEqual(tax.category, "Tax")
         XCTAssertEqual(tax.year, 2023)
+    }
+}
+
+/// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).
+private final class NoUbiquityFileManager: FileManager {
+    override func url(forUbiquityContainerIdentifier identifier: String?) -> URL? {
+        nil
     }
 }
