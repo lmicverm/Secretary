@@ -91,13 +91,13 @@ Files on disk are the source of truth. Use **Rebuild Index** if the database eve
 
 ## Document understanding
 
-On-device only. **No cloud LLM** (unless you later opt in).
+On-device only. **No cloud LLM** unless you later opt in.
 
-| Path | When it runs | What it does |
+| Path | Enabled when | What runs |
 |---|---|---|
-| **Heuristic** (default) | macOS 14 / iOS 17+ (current deployment, including Personal Team Debug) | Filename + OCR, NaturalLanguage names, Belgian invoice/tax patterns → title, type, tags, optional amount / dates / correspondent |
-| **Foundation Models** (Apple Intelligence) | App built with an SDK that has `FoundationModels` **and** OS **macOS 26 / iOS 26+** | `extractAsync` tries the on-device model first, then falls back to heuristics. The classify/filename path stays sync-heuristic so Move never blocks on a model. |
+| **Foundation Models** (Apple Intelligence, preferred) | **macOS 26+ / iOS 26+** *and* the app is built with an SDK that includes the `FoundationModels` framework (Xcode that ships Apple Intelligence). Apple Intelligence must be available on the device. | `LanguageModelSession` on-device after OCR (`extractAsync`). Junk titles are still filtered. If the model is missing or throws, we fall back. |
+| **Heuristic** (always compiled) | **macOS 14 / iOS 17+** — current deployment, including Personal Team Debug and any machine without Apple Intelligence | Filename + OCR + NaturalLanguage + Belgian invoice/tax patterns. This is what **Move** uses so classify never blocks on a model. |
+
+Weak linking: `FoundationModelUnderstanding.swift` is wrapped in `#if canImport(FoundationModels)`. `foundationModelsAvailable` also requires OS major version ≥ 26 (`#available(macOS 15, iOS 18)` plus a runtime check so Xcode 15 still compiles). Older deploy targets never link the new framework.
 
 Classify always writes `YYYY-MM-DD__type__{slug(cleaned title)}.ext` from the cleaned title — never raw OCR tokens (`PfO6D4aa`, `import`, …).
-
-**TODO when raising the deployment target:** implement `DocumentUnderstanding.extractWithFoundationModels` with `LanguageModelSession` + a `@Generable` schema. Keep the heuristic fallback. Weak-link via `#if canImport(FoundationModels)`; `foundationModelsAvailable` already checks OS major version ≥ 26.

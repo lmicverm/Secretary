@@ -160,7 +160,8 @@ public enum DocumentUnderstanding {
         )
     }
 
-    /// Tries Foundation Models when the OS/SDK has them; always falls back to ``extract(from:)``.
+    /// Foundation Models first when the OS/SDK can run them; otherwise the heuristic extractor.
+    /// Never calls a cloud LLM.
     public static func extractAsync(
         from document: DocumentRecord,
         preferredTitle: String? = nil,
@@ -173,9 +174,9 @@ public enum DocumentUnderstanding {
             preferredType: preferredType,
             preferredTags: preferredTags
         )
+        guard foundationModelsAvailable else { return fallback }
         #if canImport(FoundationModels)
-        if foundationModelsAvailable,
-           let enriched = await extractWithFoundationModels(from: document, fallback: fallback) {
+        if let enriched = await FoundationModelUnderstanding.extract(from: document, fallback: fallback) {
             return enriched
         }
         #endif
@@ -307,17 +308,4 @@ public enum DocumentUnderstanding {
         return String(text[swift])
     }
 
-    #if canImport(FoundationModels)
-    /// TODO: Call `LanguageModelSession` + a `@Generable` schema once deployment is raised
-    /// to an OS that ships Foundation Models. Returning `nil` keeps macOS 14 / Personal Team
-    /// on the heuristic path even if a newer SDK can import the module.
-    static func extractWithFoundationModels(
-        from document: DocumentRecord,
-        fallback: StructuredDocumentFields
-    ) async -> StructuredDocumentFields? {
-        _ = document
-        _ = fallback
-        return nil
-    }
-    #endif
 }

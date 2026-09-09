@@ -536,13 +536,30 @@ public final class LibraryStore: ObservableObject {
             let text = await Task.detached(priority: .utility) {
                 TextExtractionService.extractText(from: url)
             }.value
-            let updated = try library.updateMetadata(documentID: documentID, ocrText: text)
+            var updated = try library.updateMetadata(documentID: documentID, ocrText: text)
+            let fields = await DocumentUnderstanding.extractAsync(from: updated)
+            if shouldApplyUnderstanding(fields, to: updated) {
+                updated = try library.updateMetadata(
+                    documentID: documentID,
+                    title: fields.title,
+                    tags: updated.tags.isEmpty ? fields.tags : nil
+                )
+            }
             SpotlightIndexer.index(updated, fileURL: url)
             self.reload()
         } catch {
             NSLog("Secretary: OCR/index failed for \(documentID): \(error.localizedDescription)")
             self.errorMessage = error.localizedDescription
         }
+    }
+
+    /// Apply on-device understanding after OCR when the stored title is still a filename stub.
+    private func shouldApplyUnderstanding(_ fields: StructuredDocumentFields, to record: DocumentRecord) -> Bool {
+        DocumentTitleGenerator.looksGeneric(
+            record.title,
+            filename: record.filename,
+            originalFilename: record.originalFilename
+        ) || fields.source == .foundationModels && record.title != fields.title
     }
 }
 
