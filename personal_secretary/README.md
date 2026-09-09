@@ -2,20 +2,38 @@
 
 Local-first digital secretary for personal + BV documents on **macOS** and **iOS**.
 
-Documents live as a real folder tree (Finder / Files). Classification *is* the path. A rebuildable SQLite + FTS5 index powers search, OCR text, favorites, and expiry reminders. Sync uses **iCloud Drive** — no always-on Mac server.
+Documents live as a real folder tree (Finder / Files). Classification *is* the path. A rebuildable SQLite + FTS5 index powers search, OCR text, favorites, and expiry reminders. Sync uses **iCloud Drive** when the paid-team entitlements are enabled — no always-on Mac server.
 
 ## Requirements
 
 - Xcode 15+ (macOS 14+, iOS 17+)
-- Apple ID with iCloud Drive enabled (falls back to local Application Support if iCloud is unavailable)
-- Apple Developer team for device installs and the iCloud container `iCloud.be.vermeir.secretary`
+- A free **Personal Team** is enough to run **SecretaryMac** Debug locally
+- A paid Apple Developer team is required for iCloud Drive (`iCloud.be.vermeir.secretary`) and for installing on a physical iPhone
 
-## Open & run
+## Open & run (Mac, Personal Team)
+
+Use the **SecretaryMac** scheme. Do **not** run the iOS **Secretary** scheme as “Designed for iPad” on the Mac — that path is a different target and still expects device/iCloud signing.
 
 1. Open [`Secretary.xcodeproj`](Secretary.xcodeproj) in Xcode.
-2. Select your **Team** on targets `Secretary`, `SecretaryMac`, and `ShareExtension`.
-3. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/), create the iCloud container `iCloud.be.vermeir.secretary` (or change the ID in entitlements + `LibraryLocation.swift` to match yours).
-4. Run **SecretaryMac** on your Mac, or **Secretary** on an iPhone/simulator.
+2. In the scheme menu, choose **SecretaryMac** (not **Secretary**).
+3. Select the **SecretaryMac** target → **Signing & Capabilities**.
+4. Set **Team** to your **Personal Team** (free Apple ID).
+5. Leave the configuration as **Debug** (the default for Run). Debug uses [`Secretary-macOS-Debug.entitlements`](Apps/Secretary/Resources/Secretary-macOS-Debug.entitlements): sandbox + file/network access, **no iCloud**. Xcode can then create a Mac development profile.
+6. Run (⌘R). The library lives under Application Support (`~/Library/Application Support/Secretary`) unless you pick a custom folder in Settings.
+
+Personal Team = **local library only**. iCloud Drive is not available on a free team.
+
+## iCloud (paid Apple Developer team)
+
+Release builds of SecretaryMac keep iCloud via [`Secretary-macOS.entitlements`](Apps/Secretary/Resources/Secretary-macOS.entitlements).
+
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/).
+2. Set **Team** on `Secretary`, `SecretaryMac`, and `ShareExtension` to that paid team.
+3. In [Certificates, Identifiers & Profiles](https://developer.apple.com/account/), create the iCloud container `iCloud.be.vermeir.secretary` (or change the ID in the Release/iOS entitlements + `LibraryLocation.swift` to match yours).
+4. For a Mac Release build, confirm **SecretaryMac** → **Release** still uses `Secretary-macOS.entitlements` (iCloud Cloud Documents + ubiquity container).
+5. Run **SecretaryMac** (Release) on Mac, or **Secretary** on an iPhone.
+
+The app already falls back to Application Support when the iCloud container is missing or unsigned — Debug Personal Team uses that path.
 
 Core library smoke checks (no Xcode.app required if Command Line Tools can build):
 
