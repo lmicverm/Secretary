@@ -72,6 +72,32 @@ struct SecretarySmoke {
         let taxInbox = try library.importFile(from: taxSource, preferredName: "aanslag")
         let suggestions = try library.suggestions(for: taxInbox)
         check("tax suggestion exists", suggestions.contains { $0.space == .personal && $0.category == "Tax" })
+        check("tax suggestion has tags", suggestions.contains { $0.category == "Tax" && !$0.tags.isEmpty })
+
+        let ocrInbox = try library.importFile(from: taxSource, preferredName: "aanslag-ocr")
+        let ocrUpdated = try library.updateMetadata(
+            documentID: ocrInbox.id,
+            ocrText: "aanslagbiljet personenbelasting 2023"
+        )
+        check("ocr prefills empty tags", !ocrUpdated.tags.isEmpty)
+
+        check("reject cyrillic category", !SuggestionSanitizer.isAcceptableCategory("Підетидегіке"))
+        check("reject reference code", !SuggestionSanitizer.isAcceptableLabel("PfO6D4aa"))
+        check("reject ALL CUL", !SuggestionSanitizer.isAcceptablePhrase("ALL CUL"))
+        check("accept dutch title", SuggestionSanitizer.isAcceptablePhrase("Aanvraag tot identificatie"))
+
+        let named = try library.classify(
+            documentID: ocrUpdated.id,
+            as: ClassificationTarget(
+                space: .personal,
+                category: "Tax",
+                year: 2023,
+                documentType: "import",
+                shortTitle: "PfO6D4aa"
+            )
+        )
+        check("filed name drops import", !named.filename.contains("__import__"))
+        check("filed name not reference code", !named.filename.lowercased().contains("pfo6"))
 
         if failures > 0 {
             fputs("\(failures) failure(s)\n", stderr)

@@ -12,6 +12,8 @@ public struct ClassificationSuggestion: Identifiable, Hashable, Sendable {
     public var reason: String
     /// True when this category is not in the default taxonomy / existing folders yet.
     public var isNewCategory: Bool
+    /// Suggested tags for this destination (empty when none could be inferred).
+    public var tags: [String]
 
     public init(
         space: DocumentSpace,
@@ -21,7 +23,8 @@ public struct ClassificationSuggestion: Identifiable, Hashable, Sendable {
         shortTitle: String,
         confidence: Double,
         reason: String,
-        isNewCategory: Bool = false
+        isNewCategory: Bool = false,
+        tags: [String] = []
     ) {
         self.space = space
         self.category = category
@@ -31,6 +34,7 @@ public struct ClassificationSuggestion: Identifiable, Hashable, Sendable {
         self.confidence = confidence
         self.reason = reason
         self.isNewCategory = isNewCategory
+        self.tags = tags
     }
 
     public var destinationLabel: String {
@@ -43,7 +47,7 @@ public struct ClassificationSuggestion: Identifiable, Hashable, Sendable {
         return isNewCategory ? "\(base) (new)" : base
     }
 
-    public func asTarget(notes: String = "", tags: [String] = [], expiryDate: Date? = nil) -> ClassificationTarget {
+    public func asTarget(notes: String = "", tags: [String]? = nil, expiryDate: Date? = nil) -> ClassificationTarget {
         ClassificationTarget(
             space: space,
             category: category,
@@ -51,7 +55,7 @@ public struct ClassificationSuggestion: Identifiable, Hashable, Sendable {
             documentType: documentType,
             shortTitle: shortTitle,
             notes: notes,
-            tags: tags,
+            tags: tags ?? self.tags,
             expiryDate: expiryDate
         )
     }
@@ -179,15 +183,20 @@ public enum ClassificationSuggester {
         }
 
         return scored.values
+            .filter { acc in
+                SuggestionSanitizer.isAcceptableCategory(acc.category)
+                    && SuggestionSanitizer.isAcceptableDocumentType(acc.documentType)
+            }
             .sorted { $0.score > $1.score }
             .prefix(limit)
             .map { acc in
+                let type = cleanedDocumentType(acc.documentType)
                 ClassificationSuggestion(
                     space: acc.space,
                     category: acc.category,
                     year: FolderSchema.normalizedYear(acc.year),
-                    documentType: acc.documentType,
-                    shortTitle: title,
+                    documentType: type,
+                    shortTitle: cleanedDisplayTitle(title, document: document),
                     confidence: min(acc.score / 6.0, 1.0),
                     reason: {
                         var parts = Array(acc.reasons.prefix(2))
@@ -196,18 +205,160 @@ public enum ClassificationSuggester {
                         }
                         return parts.joined(separator: " · ")
                     }(),
-                    isNewCategory: acc.isNewCategory
+                    isNewCategory: acc.isNewCategory,
+                    tags: suggestedTags(
+                        for: document,
+                        space: acc.space,
+                        category: acc.category,
+                        year: acc.year,
+                        documentType: type
+                    )
                 )
             }
     }
 
     public static func suggestedTitle(for document: DocumentRecord) -> String {
-        DocumentTitleGenerator.makeTitle(
-            originalFilename: document.originalFilename,
-            filename: document.filename,
-            ocrText: document.ocrText,
-            documentType: inferredType(from: document.filename)
+        cleanedDisplayTitle(
+            DocumentTitleGenerator.makeTitle(
+                originalFilename: document.originalFilename,
+                filename: document.filename,
+                ocrText: document.ocrText,
+                documentType: inferredType(from: document.filename)
+            ),
+            document: document
         )
+    }
+
+    /// Human title for UI + filing. Rejects OCR junk and falls back to the filename stem.
+    public static func cleanedDisplayTitle(_ raw: String, document: DocumentRecord) -> String {
+        let fromFile = DocumentTitleGenerator.titleFromFilename(
+            document.originalFilename.isEmpty ? document.filename : document.originalFilename
+        )
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if SuggestionSanitizer.isAcceptablePhrase(trimmed),
+           !SuggestionSanitizer.looksLikeOCRFragment(trimmed, filenameTitle: fromFile) {
+            return String(trimmed.prefix(72))
+        }
+        if SuggestionSanitizer.isAcceptablePhrase(fromFile) {
+            return String(fromFile.prefix(72))
+        }
+        return "Document"
+    }
+
+    /// Filing type: drop Inbox leftovers (`import`/`scan`/`drop`) and OCR junk.
+    public static func cleanedDocumentType(_ raw: String, fallback: String = "document") -> String {
+        let generic: Set<String> = ["import", "scan", "drop", "photo", "file", "untitled", ""]
+        let slug = FolderSchema.sanitize(raw)
+        if generic.contains(slug) || !SuggestionSanitizer.isAcceptableDocumentType(raw) {
+            let fb = FolderSchema.sanitize(fallback)
+            return generic.contains(fb) ? "document" : fb
+        }
+        return slug
+    }
+
+    /// Heuristic tags from OCR, filename, correspondent, category, year, and Belgian document cues.
+    /// Only used to prefill empty tag lists — callers must not overwrite user-edited tags.
+    public static func suggestedTags(
+        for document: DocumentRecord,
+        space: DocumentSpace? = nil,
+        category: String? = nil,
+        year: Int? = nil,
+        documentType: String? = nil,
+        limit: Int = 8
+    ) -> [String] {
+        let resolvedSpace = space ?? document.space
+        let resolvedCategory = category ?? document.category
+        let resolvedYear = FolderSchema.normalizedYear(
+            year ?? document.year ?? DocumentDateParser.year(in: document)
+        )
+        let resolvedType = documentType ?? inferredType(from: document.filename)
+
+        let fullText = [
+            document.originalFilename,
+            document.filename,
+            document.title,
+            document.notes,
+            document.ocrText
+        ].joined(separator: "\n")
+        let tokens = TextFeatures.tokens(from: fullText)
+
+        var tags: [String] = []
+        var seen = Set<String>()
+
+        func add(_ raw: String?) {
+            guard let tag = sanitizeTag(raw) else { return }
+            let key = tag.lowercased()
+            guard !seen.contains(key) else { return }
+            seen.insert(key)
+            tags.append(tag)
+        }
+
+        for cue in TagCues.cues where tokens.contains(where: { cue.keywords.contains($0) }) {
+            add(cue.label)
+        }
+
+        if let resolvedCategory {
+            add(resolvedCategory)
+        }
+        if let resolvedYear {
+            add(String(resolvedYear))
+        }
+        if resolvedSpace == .bv {
+            add("BV")
+        }
+        if let resolvedType {
+            let generic: Set<String> = ["document", "import", "scan", "drop", "photo", "file"]
+            if !generic.contains(resolvedType.lowercased()) {
+                add(resolvedType.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " "))
+            }
+        }
+        if let correspondent = DocumentTitleGenerator.correspondentHint(from: document.ocrText) {
+            add(correspondent)
+        }
+
+        let filenameSource = document.originalFilename.isEmpty ? document.filename : document.originalFilename
+        let filenameWords = DocumentTitleGenerator.titleFromFilename(filenameSource)
+            .split(separator: " ")
+            .map(String.init)
+        for word in filenameWords where word.count >= 4 && word.rangeOfCharacter(from: .decimalDigits) == nil {
+            add(word)
+        }
+
+        return Array(tags.prefix(limit))
+    }
+
+    /// Normalize a free-form tag for storage. Returns nil when the value is too generic.
+    public static func sanitizeTag(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let collapsed = raw
+            .replacingOccurrences(of: #"[_\-/\\]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count >= 2, collapsed.count <= 40 else { return nil }
+        let lower = collapsed.lowercased()
+        let blocked: Set<String> = [
+            "document", "import", "scan", "photo", "drop", "pdf", "file", "untitled",
+            "copy", "final", "image", "img", "page"
+        ]
+        if blocked.contains(lower) { return nil }
+        if !collapsed.allSatisfy(\.isNumber), !SuggestionSanitizer.isAcceptablePhrase(collapsed) {
+            return nil
+        }
+        let acronyms: Set<String> = ["btw", "vat", "rsz", "rsvz", "iban", "kbc", "eid", "bv", "div", "fod"]
+        if acronyms.contains(lower) {
+            return collapsed.uppercased()
+        }
+        if collapsed.allSatisfy(\.isNumber), collapsed.count == 4 {
+            return collapsed
+        }
+        return collapsed.split(separator: " ").map { part -> String in
+            let s = String(part)
+            if s.count <= 4, s.uppercased() == s, s.rangeOfCharacter(from: .letters) != nil {
+                return s.uppercased()
+            }
+            guard let first = s.first else { return s }
+            return String(first).uppercased() + s.dropFirst().lowercased()
+        }.joined(separator: " ")
     }
 
     public static func knownCategoryNames(from catalog: [DocumentRecord]) -> Set<String> {
@@ -240,9 +391,16 @@ public enum ClassificationSuggester {
                 return String(first).uppercased() + part.dropFirst().lowercased()
             }
             .joined()
-        let allowed = CharacterSet.alphanumerics
-        let compact = String(joined.unicodeScalars.compactMap { allowed.contains($0) ? Character($0) : nil })
-        return compact.isEmpty ? "Misc" : String(compact.prefix(40))
+        let compact = String(joined.unicodeScalars.compactMap { scalar -> Character? in
+            if CharacterSet.decimalDigits.contains(scalar) { return Character(scalar) }
+            guard scalar.properties.script == .latin else { return nil }
+            return Character(scalar)
+        })
+        let cleaned = compact.isEmpty ? "Misc" : String(compact.prefix(40))
+        if cleaned != "Misc", !SuggestionSanitizer.isAcceptableCategory(cleaned) {
+            return "Misc"
+        }
+        return cleaned
     }
 
     private static func inventCategory(
@@ -255,7 +413,12 @@ public enum ClassificationSuggester {
             "date", "datum", "naam", "name", "adres", "address", "tel", "email", "www"
         ])
         let candidates = tokens
-            .filter { $0.count >= 5 && !blocked.contains($0) && $0.rangeOfCharacter(from: .decimalDigits) == nil }
+            .filter {
+                $0.count >= 5
+                    && !blocked.contains($0)
+                    && $0.rangeOfCharacter(from: .decimalDigits) == nil
+                    && SuggestionSanitizer.isAcceptableLabel($0)
+            }
             .sorted { lhs, rhs in
                 if lhs.count != rhs.count { return lhs.count > rhs.count }
                 return lhs < rhs
@@ -263,12 +426,15 @@ public enum ClassificationSuggester {
         guard let best = candidates.first else {
             let fromTitle = sanitizeCategoryName(title)
             let key = normalizedCategoryKey(fromTitle)
-            guard !known.contains(key), fromTitle != "Misc", fromTitle.count >= 4 else { return nil }
+            guard !known.contains(key), fromTitle != "Misc", fromTitle.count >= 4,
+                  SuggestionSanitizer.isAcceptableCategory(fromTitle) else { return nil }
             return (.personal, fromTitle, "document")
         }
         let category = sanitizeCategoryName(best)
         let key = normalizedCategoryKey(category)
-        guard !known.contains(key) else { return nil }
+        guard category != "Misc", SuggestionSanitizer.isAcceptableCategory(category), !known.contains(key) else {
+            return nil
+        }
         let space: DocumentSpace = tokens.contains(where: { ["bv", "btw", "vat", "vennootschap", "invoice", "factuur"].contains($0) })
             ? .bv : .personal
         return (space, category, "document")
@@ -281,7 +447,11 @@ public enum ClassificationSuggester {
     private static func inferredType(from filename: String) -> String? {
         let parts = (filename as NSString).deletingPathExtension.split(separator: "__")
         guard parts.count >= 2 else { return nil }
-        return String(parts[1])
+        let type = String(parts[1])
+        let generic: Set<String> = ["import", "scan", "drop", "photo", "file", "untitled"]
+        guard !generic.contains(type.lowercased()) else { return nil }
+        guard SuggestionSanitizer.isAcceptableDocumentType(type) else { return nil }
+        return type
     }
 
     private static func destinationKey(space: DocumentSpace, category: String, year: Int?) -> String {
@@ -423,6 +593,137 @@ enum TextFeatures {
     }
 }
 
+// MARK: - Tag cues (Belgian + common document labels)
+
+private enum TagCues {
+    struct Cue {
+        let keywords: Set<String>
+        let label: String
+    }
+
+    static let cues: [Cue] = [
+        Cue(keywords: ["factuur", "invoice"], label: "Factuur"),
+        Cue(keywords: ["creditnota", "creditnote"], label: "Creditnota"),
+        Cue(keywords: ["btw", "vat"], label: "BTW"),
+        Cue(keywords: ["rsvz"], label: "RSVZ"),
+        Cue(keywords: ["rsz"], label: "RSZ"),
+        Cue(keywords: ["aanslagbiljet", "personenbelasting", "belasting", "tax"], label: "Belasting"),
+        Cue(keywords: ["verzekering", "verzekeringspolis", "polis", "insurance"], label: "Verzekering"),
+        Cue(keywords: ["loonfiche", "loonbrief", "payslip"], label: "Loonfiche"),
+        Cue(keywords: ["jaarrekening", "balans"], label: "Jaarrekening"),
+        Cue(keywords: ["identiteitskaart", "eid", "paspoort", "rijbewijs"], label: "Identiteit"),
+        Cue(keywords: ["iban", "bankafschrift", "bank"], label: "Bank"),
+        Cue(keywords: ["huur", "huurcontract", "hypotheek"], label: "Huur"),
+        Cue(keywords: ["contract", "overeenkomst", "agreement"], label: "Contract"),
+        Cue(keywords: ["fluvius", "engie", "luminus", "elektriciteit"], label: "Nuts"),
+        Cue(keywords: ["fod", "financien", "financiën", "finances"], label: "FOD"),
+    ]
+}
+
+// MARK: - Reject OCR junk (Cyrillic, reference codes, ALL-CAPS fragments)
+
+/// Filters category / type / title suggestions so garbage OCR never becomes a folder or filename.
+public enum SuggestionSanitizer {
+    public static let knownAcronyms: Set<String> = [
+        "BTW", "VAT", "RSZ", "RSVZ", "IBAN", "KBC", "EID", "FOD", "BV", "NV", "ASBL",
+        "VZW", "DIV", "PDF", "SPF", "ONSS", "BE", "EU", "BTWBE"
+    ]
+
+    public static func isAcceptableLabel(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, trimmed.count <= 48 else { return false }
+        if !isMostlyLatin(trimmed) { return false }
+        if looksLikeReferenceCode(trimmed) { return false }
+        if looksLikeMixedCaseJunk(trimmed) { return false }
+        return true
+    }
+
+    public static func isAcceptablePhrase(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, trimmed.count <= 80 else { return false }
+        if !isMostlyLatin(trimmed) { return false }
+        if looksLikeAllCapsJunk(trimmed) { return false }
+        let words = trimmed.split { $0.isWhitespace || $0 == "-" || $0 == "_" }.map(String.init)
+        if words.contains(where: { looksLikeReferenceCode($0) || looksLikeMixedCaseJunk($0) }) {
+            return false
+        }
+        return true
+    }
+
+    public static func isAcceptableCategory(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2, trimmed.lowercased() != "misc" else { return false }
+        if DefaultTaxonomy.personalCategories.contains(trimmed) || DefaultTaxonomy.bvCategories.contains(trimmed) {
+            return true
+        }
+        return isAcceptableLabel(trimmed) && !looksLikeAllCapsJunk(trimmed)
+    }
+
+    public static func isAcceptableDocumentType(_ raw: String) -> Bool {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let generic: Set<String> = ["import", "scan", "drop", "photo", "file", "untitled"]
+        if generic.contains(trimmed.lowercased()) { return false }
+        if knownAcronyms.contains(trimmed.uppercased()) { return true }
+        return isAcceptableLabel(trimmed)
+    }
+
+    /// Truncated OCR leftovers like "or Btw Doeleinden Bij Aanvang…".
+    public static func looksLikeOCRFragment(_ text: String, filenameTitle: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        let leftovers = ["or ", "and ", "the ", "van ", "de ", "het ", "tot ", "voor ", "bij "]
+        if leftovers.contains(where: { lower.hasPrefix($0) }), filenameTitle.count > trimmed.count {
+            return true
+        }
+        let fileLower = filenameTitle.lowercased()
+        if fileLower.count >= 12, lower.count >= 8, fileLower.contains(lower), fileLower != lower {
+            return true
+        }
+        return false
+    }
+
+    public static func isMostlyLatin(_ text: String) -> Bool {
+        let letters = text.filter(\.isLetter)
+        if letters.isEmpty {
+            return text.contains(where: \.isNumber)
+        }
+        let latin = letters.filter { $0.unicodeScalars.allSatisfy { $0.properties.script == .latin } }
+        return Double(latin.count) / Double(letters.count) >= 0.85
+    }
+
+    public static func looksLikeReferenceCode(_ token: String) -> Bool {
+        let compact = token.replacingOccurrences(of: " ", with: "")
+        let letters = compact.filter(\.isLetter).count
+        let digits = compact.filter(\.isNumber).count
+        return letters >= 2 && digits >= 2 && compact.count <= 16
+    }
+
+    public static func looksLikeMixedCaseJunk(_ token: String) -> Bool {
+        let letters = token.filter(\.isLetter)
+        guard letters.count >= 4, token.contains(where: \.isNumber) else { return false }
+        var changes = 0
+        var previous: Bool?
+        for character in letters {
+            let upper = character.isUppercase
+            if let previous, previous != upper { changes += 1 }
+            previous = upper
+        }
+        return changes >= 2
+    }
+
+    public static func looksLikeAllCapsJunk(_ text: String) -> Bool {
+        let words = text.split(whereSeparator: \.isWhitespace).map(String.init).filter { !$0.isEmpty }
+        guard words.count >= 2 else { return false }
+        let shortCaps = words.filter { word in
+            let letters = word.filter(\.isLetter)
+            guard letters.count >= 2, letters.count <= 4, word == word.uppercased() else { return false }
+            return !knownAcronyms.contains(word.uppercased())
+        }
+        return shortCaps.count >= 2 && shortCaps.count == words.count
+    }
+}
+
 // MARK: - Extra / new category proposals (outside default taxonomy)
 
 private enum NewCategoryRules {
@@ -473,7 +774,7 @@ private enum KeywordRules {
         Rule(keywords: ["btw", "vat", "jaarrekening", "balans", "boekhoud", "accounting"], space: .bv, category: "Tax", documentType: "tax", weight: 2.3, preferYear: true, reason: "BV tax/accounting keywords"),
         Rule(keywords: ["factuur", "invoice", "creditnota"], space: .bv, category: "Invoices", documentType: "invoice", weight: 2.0, preferYear: true, reason: "invoice keywords"),
         Rule(keywords: ["statuten", "aandeelhouders", "governance", "notulen", "bestuur"], space: .bv, category: "Governance", documentType: "governance", weight: 2.2, preferYear: false, reason: "governance keywords"),
-        Rule(keywords: ["rsz", "sociale", "secrétariat", "socialsecretariat", "loonfiche"], space: .bv, category: "SocialSecretariat", documentType: "social", weight: 2.2, preferYear: true, reason: "social secretariat keywords"),
+        Rule(keywords: ["rsz", "rsvz", "sociale", "secrétariat", "socialsecretariat", "loonfiche"], space: .bv, category: "SocialSecretariat", documentType: "social", weight: 2.2, preferYear: true, reason: "social secretariat keywords"),
         Rule(keywords: ["bank", "rekening", "iban", "bankafschrift", "statement", "kbc", "belfius", "ing"], space: .personal, category: "Banking", documentType: "statement", weight: 1.6, preferYear: true, reason: "banking keywords"),
         Rule(keywords: ["school", "rapport", "inschrijving", "tuition", "ouderbijdrage"], space: .personal, category: "School", documentType: "school", weight: 2.0, preferYear: true, reason: "school keywords"),
         Rule(keywords: ["huur", "lease", "hypotheek", "notaris", "akte", "kadaster", "woning"], space: .personal, category: "Housing", documentType: "housing", weight: 2.0, preferYear: false, reason: "housing keywords"),
