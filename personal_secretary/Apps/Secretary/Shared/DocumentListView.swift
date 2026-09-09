@@ -68,6 +68,12 @@ struct DocumentListView: View {
                             }
                         }
                     }
+                } else if store.filter.inboxOnly {
+                    Section("Waiting") {
+                        ForEach(store.documents) { doc in
+                            documentRow(doc)
+                        }
+                    }
                 } else {
                     ForEach(store.documents) { doc in
                         documentRow(doc)

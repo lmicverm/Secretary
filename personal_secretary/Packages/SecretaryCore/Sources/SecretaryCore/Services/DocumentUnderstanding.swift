@@ -174,7 +174,8 @@ public enum DocumentUnderstanding {
             preferredTags: preferredTags
         )
         #if canImport(FoundationModels)
-        if let enriched = await extractWithFoundationModels(from: document, fallback: fallback) {
+        if foundationModelsAvailable,
+           let enriched = await extractWithFoundationModels(from: document, fallback: fallback) {
             return enriched
         }
         #endif

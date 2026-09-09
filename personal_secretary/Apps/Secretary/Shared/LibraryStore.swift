@@ -19,6 +19,9 @@ public final class LibraryStore: ObservableObject {
     @Published public private(set) var rootPath: String = ""
     @Published public private(set) var usingiCloud = false
     @Published public private(set) var usingCustomRoot = false
+    @Published public var pendingSettingsTab: String?
+    @Published public private(set) var mailboxConfigured = false
+    @Published public private(set) var mailboxEmail: String?
 
     public private(set) var library: DocumentLibrary?
     private var accessedRootURL: URL?
@@ -50,6 +53,7 @@ public final class LibraryStore: ObservableObject {
             usingiCloud = LibraryLocation.isUsingiCloud
             usingCustomRoot = LibraryLocation.isUsingCustomRoot
             try lib.refreshFromDisk()
+            refreshMailboxStatus()
             reload()
             if usingCustomRoot {
                 statusMessage = "Library: \(rootPath)"
@@ -141,6 +145,15 @@ public final class LibraryStore: ObservableObject {
 
     @Published public private(set) var lastMailIngestResult: MailIngestResult?
     
+    public func refreshMailboxStatus() {
+        mailboxConfigured = MailboxSettings.isConfigured
+        mailboxEmail = MailboxSettings.inboxEmail
+    }
+
+    public func openMailboxSettings() {
+        pendingSettingsTab = "mailbox"
+    }
+
     public func checkMailbox() async {
         guard let library else { return }
         guard MailboxSettings.isConfigured else {
@@ -178,12 +191,14 @@ public final class LibraryStore: ObservableObject {
                 MailboxSettings.inboxId = match.inboxId
                 MailboxSettings.inboxEmail = match.email
                 statusMessage = "Linked mailbox \(match.email ?? match.inboxId)"
+                refreshMailboxStatus()
                 return
             }
             let created = try await client.createInbox(username: username, clientId: "secretary-v1")
             MailboxSettings.inboxId = created.inboxId
             MailboxSettings.inboxEmail = created.email
             statusMessage = "Created mailbox \(created.email ?? created.inboxId)"
+            refreshMailboxStatus()
         } catch {
             errorMessage = error.localizedDescription
         }

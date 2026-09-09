@@ -377,6 +377,27 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertFalse(DocumentListGrouping.shouldGroup(filter: DocumentFilter(query: "kbc")))
     }
 
+    func testCategoryFilterFindsYearSubfolderFiles() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryYear-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let folder = root.appendingPathComponent("Personal/Tax/2023")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("2023-05-01__tax__aanslag.txt")
+        try "aanslagbiljet 2023".write(to: file, atomically: true, encoding: .utf8)
+        try library.refreshFromDisk()
+
+        let results = try library.search(DocumentFilter(space: .personal, category: "Tax"))
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.year, 2023)
+        XCTAssertEqual(results.first?.category, "Tax")
+        XCTAssertTrue(results.first?.relativePath.contains("Personal/Tax/2023/") == true)
+
+        let sections = DocumentListGrouping.sections(from: results)
+        XCTAssertEqual(sections.map(\.title), ["2023 · Tax"])
+    }
+
     func testUnderstandingExtractsInvoiceFieldsAndRejectsJunkTitle() {
         let document = DocumentRecord(
             relativePath: "Inbox/2024-01-01__import__pfo6d4aa.txt",
