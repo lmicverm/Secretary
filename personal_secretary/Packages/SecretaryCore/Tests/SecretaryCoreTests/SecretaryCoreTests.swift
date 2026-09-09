@@ -186,6 +186,22 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(metrics.previewMinHeight, DetailLayoutMetrics.macPreviewMin)
         XCTAssertEqual(metrics.previewMinHeight, 900 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
 
+        let defaultish = DetailLayoutMetrics.resolve(
+            availableWidth: 720,
+            availableHeight: 760,
+            isMac: true
+        )
+        XCTAssertTrue(defaultish.usesSideColumn, "Default 1280 window should already be preview-dominant")
+
+        let shortWide = DetailLayoutMetrics.resolve(
+            availableWidth: 900,
+            availableHeight: 400,
+            isMac: true
+        )
+        XCTAssertTrue(shortWide.usesSideColumn)
+        XCTAssertLessThanOrEqual(shortWide.previewMinHeight, 400 - 120)
+        XCTAssertGreaterThanOrEqual(shortWide.previewMinHeight, 240)
+
         let huge = DetailLayoutMetrics.resolve(
             availableWidth: 2000,
             availableHeight: 1200,

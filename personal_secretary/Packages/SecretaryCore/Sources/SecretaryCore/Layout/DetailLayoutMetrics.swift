@@ -14,7 +14,8 @@ public struct DetailLayoutMetrics: Equatable, Sendable {
     public static let contentWidthFraction: CGFloat = 0.96
 
     /// Remaining detail width at which Mac switches to preview + side metadata.
-    public static let macWideBreakpoint: CGFloat = 800
+    /// ~1280 window with default sidebar+list (~560) leaves ~720pt detail.
+    public static let macWideBreakpoint: CGFloat = 700
 
     public static let macPreviewMin: CGFloat = 360
     public static let macPreviewFraction: CGFloat = 0.52
@@ -61,7 +62,12 @@ public struct DetailLayoutMetrics: Equatable, Sendable {
             let sideWidth = usesSide
                 ? min(macSideColumnMax, max(macSideColumnMin, width * macSideColumnFraction))
                 : 0
-            let previewMin = max(macPreviewMin, height * macPreviewFraction)
+            let rawPreviewMin = max(macPreviewMin, height * macPreviewFraction)
+            // Wide layout is not in a ScrollView; keep header+padding from clipping.
+            let chromeReserve: CGFloat = usesSide ? 120 : 0
+            let previewMin = chromeReserve > 0
+                ? min(rawPreviewMin, max(240, height - chromeReserve))
+                : rawPreviewMin
             let capFraction = usesSide ? macWidePreviewCapFraction : macStackedPreviewCapFraction
             let previewMax = max(previewMin, height * capFraction)
             return DetailLayoutMetrics(
