@@ -2,15 +2,17 @@
 
 Local-first digital secretary for personal + BV documents on **macOS** and **iOS**.
 
-Documents live as a real folder tree (Finder / Files). Classification *is* the path. A rebuildable SQLite + FTS5 index powers search, OCR text, favorites, and expiry reminders. Sync uses **iCloud Drive** — no always-on Mac server.
+Documents live as a real folder tree (Finder / Files). Classification *is* the path. A rebuildable SQLite + FTS5 index powers search, OCR text, favorites, and expiry reminders. Sync uses **iCloud Drive** when the paid-team entitlements are enabled — no always-on Mac server.
 
 ## Requirements
 
 - Xcode 15+ (macOS 14+, iOS 17+)
-- Apple ID with iCloud Drive enabled (falls back to local Application Support if iCloud is unavailable)
-- Apple Developer team for device installs and the iCloud container `iCloud.be.vermeir.secretary`
+- A free **Personal Team** is enough to run **SecretaryMac** Debug locally
+- A paid Apple Developer team is required for iCloud Drive (`iCloud.be.vermeir.secretary`) and for installing on a physical iPhone
 
-## Open & run
+## Open & run (Mac, Personal Team)
+
+Use the **SecretaryMac** scheme. Do **not** run the iOS **Secretary** scheme as “Designed for iPad” on the Mac — that path is a different target and still expects device/iCloud signing.
 
 1. Open [`Secretary.xcodeproj`](Secretary.xcodeproj) in Xcode.
 2. Select your **Team** on targets `Secretary`, `SecretaryMac`, and `ShareExtension`.

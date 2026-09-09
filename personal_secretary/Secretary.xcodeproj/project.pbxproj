@@ -37,6 +37,7 @@
 		24EFF24778BC46FEB025F237 /* LibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStore.swift; sourceTree = "<group>"; };
 		30A0CBC45FC44A27A8190FA2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		357030A444924A0A8D080E3C /* Secretary-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Secretary-macOS.entitlements"; sourceTree = "<group>"; };
+		A41C8E2B7F6D4B1A9C3E05D8 /* Secretary-macOS-Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Secretary-macOS-Debug.entitlements"; sourceTree = "<group>"; };
 		39112588E2694E018F726B9E /* DocumentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentListView.swift; sourceTree = "<group>"; };
 		3ACD51EA5667EBBA92234F76 /* SecretaryMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SecretaryMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		42825A382B294B45AE6BAB33 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
@@ -165,6 +166,7 @@
 				690A009505A546AD91914D33 /* Info-macOS.plist */,
 				9C5108242A0341C2AF670759 /* Secretary.entitlements */,
 				357030A444924A0A8D080E3C /* Secretary-macOS.entitlements */,
+				A41C8E2B7F6D4B1A9C3E05D8 /* Secretary-macOS-Debug.entitlements */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -448,7 +450,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

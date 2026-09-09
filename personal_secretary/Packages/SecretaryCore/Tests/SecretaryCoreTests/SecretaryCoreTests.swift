@@ -164,3 +164,10 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.year, 2023)
     }
 }
+
+/// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).
+private final class NoUbiquityFileManager: FileManager {
+    override func url(forUbiquityContainerIdentifier identifier: String?) -> URL? {
+        nil
+    }
+}
