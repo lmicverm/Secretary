@@ -109,126 +109,194 @@ struct DocumentDetailView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(liveDocument.relativePath)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+            HStack(spacing: SecretaryTheme.spacingSM) {
+                Text(liveDocument.relativePath)
+                    .font(SecretaryTheme.Typography.caption)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
+                    .textSelection(.enabled)
+                    .lineLimit(1)
+                
+                Spacer(minLength: 0)
+                
+                if liveDocument.isFavorite {
+                    Label("Favorite", systemImage: "star.fill")
+                        .font(SecretaryTheme.Typography.captionMedium)
+                        .foregroundStyle(.yellow.opacity(0.85))
+                        .labelStyle(.iconOnly)
+                }
+            }
+            
             if liveDocument.isInbox {
-                Label("Waiting in Inbox", systemImage: "tray")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(SecretaryTheme.warn)
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 12))
+                    Text("Waiting for classification")
+                        .font(SecretaryTheme.Typography.captionMedium)
+                }
+                .foregroundStyle(SecretaryTheme.warn)
+                .padding(.horizontal, SecretaryTheme.spacingMD)
+                .padding(.vertical, SecretaryTheme.spacingSM)
+                .background(
+                    RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                        .fill(SecretaryTheme.warnSoft)
+                )
             }
         }
     }
 
     private var reclassifyPrompt: some View {
-        SecretaryPanel(tint: SecretaryTheme.panel, stroke: SecretaryTheme.stroke) {
-            HStack(alignment: .center, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Filed location")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+        SecretaryPanel {
+            HStack(alignment: .center, spacing: SecretaryTheme.spacingLG) {
+                Image(systemName: "folder")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(SecretaryTheme.accent.opacity(0.7))
+                    .frame(width: 32, height: 32)
+                    .background(
+                        RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                            .fill(SecretaryTheme.accentMuted)
+                    )
+                
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingXS) {
                     Text("\(liveDocument.space?.rawValue ?? "—") / \(liveDocument.category ?? "—")\(liveDocument.year.map { " / \($0)" } ?? "")")
-                        .font(.headline)
-                    Text("Move to another folder when needed")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(SecretaryTheme.Typography.bodyMedium)
+                        .foregroundStyle(SecretaryTheme.textPrimary)
+                    Text("Current location")
+                        .font(SecretaryTheme.Typography.caption)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
                 }
-                Spacer(minLength: 8)
-                Button("Reclassify") { prepareReclassify() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SecretaryTheme.accent)
+                
+                Spacer(minLength: SecretaryTheme.spacingSM)
+                
+                Button {
+                    prepareReclassify()
+                } label: {
+                    Text("Move")
+                        .font(SecretaryTheme.Typography.captionMedium)
+                }
+                .buttonStyle(.bordered)
+                .tint(SecretaryTheme.accent)
             }
         }
     }
 
     private var classifyPanel: some View {
-        SecretaryPanel(tint: SecretaryTheme.warnSoft, stroke: SecretaryTheme.warn.opacity(0.25)) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Label(liveDocument.isInbox ? "Classify" : "Reclassify", systemImage: "sparkles")
-                        .font(.title3.weight(.semibold))
-                    Spacer()
-                    if liveDocument.ocrText.isEmpty {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.mini)
-                            Text("Reading…").font(.caption).foregroundStyle(.secondary)
+        SecretaryPanel(tint: SecretaryTheme.warnSoft, stroke: SecretaryTheme.warn.opacity(0.15)) {
+            VStack(alignment: .leading, spacing: SecretaryTheme.spacingLG) {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: SecretaryTheme.spacingXS) {
+                        Text(liveDocument.isInbox ? "Classify Document" : "Move Document")
+                            .font(SecretaryTheme.Typography.sectionTitle)
+                            .foregroundStyle(SecretaryTheme.textPrimary)
+                        
+                        if liveDocument.ocrText.isEmpty {
+                            HStack(spacing: SecretaryTheme.spacingSM) {
+                                ProgressView().controlSize(.mini)
+                                Text("Reading content…")
+                                    .font(SecretaryTheme.Typography.caption)
+                                    .foregroundStyle(SecretaryTheme.textTertiary)
+                            }
+                        } else {
+                            Text("\(liveDocument.ocrText.count) characters indexed")
+                                .font(SecretaryTheme.Typography.metadata)
+                                .foregroundStyle(SecretaryTheme.textTertiary)
                         }
-                    } else {
-                        Text("\(liveDocument.ocrText.count) chars indexed")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
                     }
+                    
+                    Spacer()
+                    
                     if !liveDocument.isInbox {
-                        Button("Cancel") { showReclassifyPanel = false }
+                        Button {
+                            showReclassifyPanel = false
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(SecretaryTheme.textTertiary)
+                                .frame(width: 24, height: 24)
+                                .background(
+                                    Circle()
+                                        .fill(Color.primary.opacity(0.05))
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
                 if !suggestions.isEmpty {
-                    Text("Suggestions — tap to load, then adjust")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                        Text("Suggestions")
+                            .font(SecretaryTheme.Typography.captionBold)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
 
-                    VStack(spacing: 8) {
-                        ForEach(suggestions.prefix(4)) { suggestion in
-                            suggestionRow(suggestion)
+                        VStack(spacing: SecretaryTheme.spacingSM) {
+                            ForEach(suggestions.prefix(3)) { suggestion in
+                                suggestionRow(suggestion)
+                            }
                         }
                     }
                 }
 
-                Divider().opacity(0.5)
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingMD) {
+                    Text("Destination")
+                        .font(SecretaryTheme.Typography.captionBold)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
 
-                Text("Destination")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                Picker("Space", selection: $draftSpace) {
-                    ForEach(DocumentSpace.allCases) { space in
-                        Text(space.displayName).tag(space)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: draftSpace) { _, _ in
-                    if !draftCategories.contains(draftCategory) {
-                        draftCategory = draftCategories.first ?? "Tax"
-                    }
-                }
-
-                FlowCategoryPicker(
-                    categories: draftCategories,
-                    selection: $draftCategory,
-                    highlighted: Set(suggestions.filter(\.isNewCategory).map(\.category))
-                )
-
-                TextField("Or type a new category", text: $draftCategory)
-                    .textFieldStyle(.roundedBorder)
-
-                HStack(spacing: 12) {
-                    Toggle("Year folder", isOn: $draftUseYear)
-                        .toggleStyle(.switch)
-                    if draftUseYear {
-                        Stepper(value: $draftYear, in: 1990...2100) {
-                            Text(String(format: "%04d", draftYear))
-                                .font(.body.monospacedDigit().weight(.medium))
-                                .frame(minWidth: 52, alignment: .leading)
+                    Picker("Space", selection: $draftSpace) {
+                        ForEach(DocumentSpace.allCases) { space in
+                            Text(space.displayName).tag(space)
                         }
                     }
+                    .pickerStyle(.segmented)
+                    .onChange(of: draftSpace) { _, _ in
+                        if !draftCategories.contains(draftCategory) {
+                            draftCategory = draftCategories.first ?? "Tax"
+                        }
+                    }
+
+                    FlowCategoryPicker(
+                        categories: draftCategories,
+                        selection: $draftCategory,
+                        highlighted: Set(suggestions.filter(\.isNewCategory).map(\.category))
+                    )
+
+                    TextField("Or type a new category", text: $draftCategory)
+                        .textFieldStyle(.roundedBorder)
+                        .font(SecretaryTheme.Typography.caption)
+
+                    HStack(spacing: SecretaryTheme.spacingMD) {
+                        Toggle("Year folder", isOn: $draftUseYear)
+                            .toggleStyle(.switch)
+                            .font(SecretaryTheme.Typography.caption)
+                        if draftUseYear {
+                            Stepper(value: $draftYear, in: 1990...2100) {
+                                Text(String(format: "%04d", draftYear))
+                                    .font(SecretaryTheme.Typography.metadataMono)
+                                    .frame(minWidth: 48, alignment: .leading)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        TextField("Type", text: $draftType)
+                            .textFieldStyle(.roundedBorder)
+                            .font(SecretaryTheme.Typography.caption)
+                            .frame(maxWidth: 120)
+                        TextField("Title", text: $draftTitle)
+                            .textFieldStyle(.roundedBorder)
+                            .font(SecretaryTheme.Typography.caption)
+                    }
+
+                    HStack(spacing: SecretaryTheme.spacingSM) {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 10))
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                        Text(destinationPreview)
+                            .font(SecretaryTheme.Typography.caption)
+                            .foregroundStyle(SecretaryTheme.textSecondary)
+                    }
                 }
 
-                HStack(spacing: 10) {
-                    TextField("Type", text: $draftType)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 140)
-                    TextField("Title", text: $draftTitle)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                Text(destinationPreview)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack {
+                HStack(spacing: SecretaryTheme.spacingSM) {
                     Button {
                         applyDraft()
                     } label: {
@@ -237,7 +305,7 @@ struct DocumentDetailView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(SecretaryTheme.accent)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                     .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button("More…") { showClassify = true }
@@ -252,38 +320,48 @@ struct DocumentDetailView: View {
         return Button {
             loadSuggestion(suggestion)
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: SecretaryTheme.spacingMD) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? SecretaryTheme.accent : .secondary)
-                    .font(.title3)
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
+                    .foregroundStyle(selected ? SecretaryTheme.accent : SecretaryTheme.textTertiary)
+                    .font(.system(size: 18))
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: SecretaryTheme.spacingSM) {
                         Text(suggestion.destinationLabel)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
+                            .font(SecretaryTheme.Typography.captionMedium)
+                            .foregroundStyle(selected ? SecretaryTheme.accent : SecretaryTheme.textPrimary)
+                        
                         if suggestion.isNewCategory {
-                            Text("NEW")
-                                .font(.caption2.weight(.bold))
-                                .padding(.horizontal, 6)
+                            Text("new")
+                                .font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
                                 .background(SecretaryTheme.warnSoft, in: Capsule())
                                 .foregroundStyle(SecretaryTheme.warn)
                         }
                     }
+                    
                     Text(suggestion.reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                        .lineLimit(1)
                 }
+                
                 Spacer(minLength: 0)
+                
                 Text("\(Int(suggestion.confidence * 100))%")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .font(SecretaryTheme.Typography.metadataMono)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
             }
-            .padding(12)
+            .padding(.horizontal, SecretaryTheme.spacingMD)
+            .padding(.vertical, SecretaryTheme.spacingSM)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? SecretaryTheme.accentSoft : Color.primary.opacity(0.03))
+                RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                    .fill(selected ? SecretaryTheme.accentSoft : Color.primary.opacity(0.02))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                    .strokeBorder(selected ? SecretaryTheme.accent.opacity(0.3) : Color.clear, lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
@@ -306,20 +384,49 @@ struct DocumentDetailView: View {
 
     private var metadataForm: some View {
         SecretaryPanel {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Details").font(.headline)
-                TextField("Title", text: $title)
-                    .textFieldStyle(.roundedBorder)
-                TextField("Notes", text: $notes, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...5)
-                TextField("Tags (comma-separated)", text: $tagsText)
-                    .textFieldStyle(.roundedBorder)
-                Toggle("Expiry / renewal date", isOn: $expiryEnabled)
-                if expiryEnabled {
-                    DatePicker("Expires", selection: $expiryDate, displayedComponents: .date)
+            VStack(alignment: .leading, spacing: SecretaryTheme.spacingMD) {
+                Text("Details")
+                    .font(SecretaryTheme.Typography.captionBold)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
+                
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                    Text("Title")
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                    TextField("Document title", text: $title)
+                        .textFieldStyle(.roundedBorder)
+                        .font(SecretaryTheme.Typography.bodySecondary)
                 }
-                Button("Save details") {
+                
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                    Text("Notes")
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                    TextField("Add notes…", text: $notes, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .font(SecretaryTheme.Typography.bodySecondary)
+                        .lineLimit(2...4)
+                }
+                
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                    Text("Tags")
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                    TextField("Comma-separated tags", text: $tagsText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(SecretaryTheme.Typography.bodySecondary)
+                }
+                
+                HStack(spacing: SecretaryTheme.spacingMD) {
+                    Toggle("Expiry date", isOn: $expiryEnabled)
+                        .font(SecretaryTheme.Typography.caption)
+                    if expiryEnabled {
+                        DatePicker("", selection: $expiryDate, displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                }
+                
+                Button {
                     let tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                     store.saveMetadata(
                         liveDocument,
@@ -328,61 +435,103 @@ struct DocumentDetailView: View {
                         tags: tags,
                         expiry: expiryEnabled ? expiryDate : nil
                     )
+                } label: {
+                    Text("Save")
+                        .font(SecretaryTheme.Typography.captionMedium)
                 }
                 .buttonStyle(.bordered)
+                .tint(SecretaryTheme.accent)
             }
         }
     }
 
     private var duplicateBanner: some View {
-        SecretaryPanel(tint: SecretaryTheme.warnSoft, stroke: SecretaryTheme.warn.opacity(0.3)) {
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Possible duplicates", systemImage: "doc.on.doc")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(SecretaryTheme.warn)
+        SecretaryPanel(tint: SecretaryTheme.warnSoft, stroke: SecretaryTheme.warn.opacity(0.15)) {
+            VStack(alignment: .leading, spacing: SecretaryTheme.spacingSM) {
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12))
+                    Text("Possible duplicates")
+                        .font(SecretaryTheme.Typography.captionMedium)
+                }
+                .foregroundStyle(SecretaryTheme.warn)
+                
                 ForEach(duplicates) { dup in
                     Text(dup.relativePath)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                        .lineLimit(1)
                 }
             }
         }
     }
 
     private var actions: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: SecretaryTheme.spacingMD) {
             Text("Actions")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
+                .font(SecretaryTheme.Typography.captionBold)
+                .foregroundStyle(SecretaryTheme.textTertiary)
+            
+            HStack(spacing: SecretaryTheme.spacingSM) {
                 if !liveDocument.isInbox {
-                    Button("Reclassify") { prepareReclassify() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(SecretaryTheme.accent)
+                    Button {
+                        prepareReclassify()
+                    } label: {
+                        Label("Move", systemImage: "folder")
+                            .font(SecretaryTheme.Typography.captionMedium)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(SecretaryTheme.accent)
                 }
-                Button(liveDocument.isFavorite ? "Unfavorite" : "Favorite") {
+                
+                Button {
                     store.toggleFavorite(liveDocument)
+                } label: {
+                    Label(
+                        liveDocument.isFavorite ? "Unfavorite" : "Favorite",
+                        systemImage: liveDocument.isFavorite ? "star.slash" : "star"
+                    )
+                    .font(SecretaryTheme.Typography.captionMedium)
                 }
                 .buttonStyle(.bordered)
+                
                 #if os(macOS)
                 if let url = store.fileURL(for: liveDocument) {
-                    Button("Open") { NSWorkspace.shared.open(url) }
-                        .buttonStyle(.bordered)
-                    Button("Show in Finder") {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Label("Open", systemImage: "arrow.up.right.square")
+                            .font(SecretaryTheme.Typography.captionMedium)
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } label: {
+                        Label("Reveal", systemImage: "folder")
+                            .font(SecretaryTheme.Typography.captionMedium)
                     }
                     .buttonStyle(.bordered)
                 }
                 #endif
+                
                 #if os(iOS)
                 if let url = store.fileURL(for: liveDocument) {
-                    ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
-                        .buttonStyle(.bordered)
+                    ShareLink(item: url) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(SecretaryTheme.Typography.captionMedium)
+                    }
+                    .buttonStyle(.bordered)
                 }
                 #endif
+                
                 Spacer(minLength: 0)
-                Button("Remove from app", role: .destructive) {
+                
+                Button(role: .destructive) {
                     confirmRemove = true
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                        .font(SecretaryTheme.Typography.captionMedium)
                 }
                 .buttonStyle(.bordered)
             }
@@ -397,7 +546,7 @@ struct DocumentDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The file stays on disk. It will only disappear from Secretary’s list and search.")
+            Text("The file stays on disk. It will only disappear from Secretary's list and search.")
         }
     }
 
@@ -498,39 +647,41 @@ struct FlowCategoryPicker: View {
     var highlighted: Set<String> = []
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], spacing: 8) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: SecretaryTheme.spacingSM)], spacing: SecretaryTheme.spacingSM) {
             ForEach(categories, id: \.self) { category in
                 let selected = selection == category
                 let isNew = highlighted.contains(category)
                 Button {
                     selection = category
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: SecretaryTheme.spacingXS) {
                         Text(category)
+                            .lineLimit(1)
                         if isNew {
                             Text("+")
-                                .font(.caption2.weight(.bold))
+                                .font(.system(size: 10, weight: .bold))
                         }
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
-                .font(.subheadline.weight(selected ? .semibold : .regular))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .font(SecretaryTheme.Typography.caption)
+                .fontWeight(selected ? .semibold : .regular)
+                .padding(.horizontal, SecretaryTheme.spacingMD)
+                .padding(.vertical, SecretaryTheme.spacingSM)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selected ? SecretaryTheme.accentSoft : Color.primary.opacity(0.04))
+                    RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                        .fill(selected ? SecretaryTheme.accentSoft : Color.primary.opacity(0.03))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
                         .strokeBorder(
-                            selected ? SecretaryTheme.accent.opacity(0.45)
-                                : (isNew ? SecretaryTheme.warn.opacity(0.5) : SecretaryTheme.stroke),
-                            lineWidth: 1
+                            selected ? SecretaryTheme.accent.opacity(0.4)
+                                : (isNew ? SecretaryTheme.warn.opacity(0.4) : SecretaryTheme.strokeSubtle),
+                            lineWidth: 0.5
                         )
                 )
-                .foregroundStyle(selected ? SecretaryTheme.accent : .primary)
+                .foregroundStyle(selected ? SecretaryTheme.accent : SecretaryTheme.textPrimary)
             }
         }
     }
@@ -573,7 +724,8 @@ struct DocumentPreview: View {
     }
 
     private var placeholder: some View {
-        ContentUnavailableView("Preview unavailable", systemImage: "doc")
+        EmptyStateView(icon: "doc", title: "Preview unavailable")
+            .frame(minHeight: 180)
     }
 }
 

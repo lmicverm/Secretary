@@ -13,11 +13,12 @@ struct DocumentListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: SecretaryTheme.spacingSM) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
                 TextField("Search anything…", text: $query)
                     .textFieldStyle(.plain)
+                    .font(SecretaryTheme.Typography.bodySecondary)
                     .onChange(of: query) { _, newValue in
                         searchTask?.cancel()
                         searchTask = Task {
@@ -38,19 +39,22 @@ struct DocumentListView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(12)
+            .padding(.horizontal, SecretaryTheme.spacingMD)
+            .padding(.vertical, SecretaryTheme.spacingMD)
             .background(.bar)
 
             List(selection: $selectedDocumentID) {
                 if store.documents.isEmpty {
-                    ContentUnavailableView {
-                        Label(emptyTitle, systemImage: emptyIcon)
-                    } description: {
-                        Text(emptyDescription)
-                    } actions: {
+                    VStack(spacing: SecretaryTheme.spacingLG) {
+                        EmptyStateView(
+                            icon: emptyIcon,
+                            title: emptyTitle,
+                            description: emptyDescription
+                        )
                         #if os(iOS)
                         ImportToolbarButtons()
                             .buttonStyle(.borderedProminent)
+                            .tint(SecretaryTheme.accent)
                         #endif
                     }
                     .frame(maxWidth: .infinity, minHeight: 280)
@@ -109,14 +113,30 @@ struct DocumentListView: View {
 
     private var emptyTitle: String {
         if store.filter.inboxOnly { return "Inbox is empty" }
+        if store.filter.favoritesOnly { return "No favorites yet" }
+        if store.filter.expiringWithinDays != nil { return "Nothing expiring soon" }
+        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "No matches" }
         return "No documents"
     }
 
     private var emptyIcon: String {
-        store.filter.inboxOnly ? "tray" : "doc.text"
+        if store.filter.inboxOnly { return "tray" }
+        if store.filter.favoritesOnly { return "star" }
+        if store.filter.expiringWithinDays != nil { return "calendar.badge.clock" }
+        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "magnifyingglass" }
+        return "doc.text"
     }
 
     private var emptyDescription: String {
+        if store.filter.favoritesOnly {
+            return "Star a document to keep it here."
+        }
+        if store.filter.expiringWithinDays != nil {
+            return "Documents with a renewal date in the next 60 days will appear here."
+        }
+        if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Try a different title, tag, or folder name."
+        }
         #if os(iOS)
         return "Tap Add to scan a page, pick photos, or import PDFs from Files."
         #else
@@ -165,38 +185,72 @@ struct DocumentListView: View {
 
 struct DocumentRow: View {
     let document: DocumentRecord
+    
+    private var isExpiringSoon: Bool {
+        guard let expiry = document.expiryDate else { return false }
+        return expiry <= Date().addingTimeInterval(30 * 24 * 60 * 60)
+    }
+    
+    private var isExpired: Bool {
+        guard let expiry = document.expiryDate else { return false }
+        return expiry < Date()
+    }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: iconName)
-                .font(.body.weight(.medium))
-                .foregroundStyle(SecretaryTheme.accent)
-                .frame(width: 22, alignment: .center)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+        HStack(alignment: .center, spacing: SecretaryTheme.spacingMD) {
+            iconView
+            
+            VStack(alignment: .leading, spacing: SecretaryTheme.spacingXS) {
+                HStack(spacing: SecretaryTheme.spacingSM) {
                     Text(document.displayTitle)
-                        .font(.body.weight(.medium))
+                        .font(SecretaryTheme.Typography.bodyMedium)
+                        .foregroundStyle(SecretaryTheme.textPrimary)
                         .lineLimit(1)
+                    
                     if document.isFavorite {
                         Image(systemName: "star.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.yellow.opacity(0.85))
                     }
                 }
-                Text(pathLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Text(pathLabel)
+                        .font(SecretaryTheme.Typography.caption)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                        .lineLimit(1)
+                    
+                    if let expiry = document.expiryDate {
+                        expiryBadge(expiry)
+                    }
+                }
             }
-            Spacer(minLength: 4)
-            if let expiry = document.expiryDate {
-                Text(expiry, style: .date)
-                    .font(.caption2)
-                    .foregroundStyle(expiry < Date() ? .red : SecretaryTheme.warn)
-            }
+            
+            Spacer(minLength: SecretaryTheme.spacingXS)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, SecretaryTheme.spacingXS)
+    }
+    
+    private var iconView: some View {
+        Image(systemName: iconName)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(document.isInbox ? SecretaryTheme.warn : SecretaryTheme.accent.opacity(0.7))
+            .frame(width: 24, height: 24)
+            .background(
+                RoundedRectangle(cornerRadius: SecretaryTheme.radiusSmall, style: .continuous)
+                    .fill(document.isInbox ? SecretaryTheme.warnSoft : SecretaryTheme.accentMuted)
+            )
+    }
+    
+    @ViewBuilder
+    private func expiryBadge(_ date: Date) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: isExpired ? "exclamationmark.circle.fill" : "calendar")
+                .font(.system(size: 9))
+            Text(date, style: .date)
+                .font(SecretaryTheme.Typography.metadata)
+        }
+        .foregroundStyle(isExpired ? .red : (isExpiringSoon ? SecretaryTheme.warn : SecretaryTheme.textTertiary))
     }
 
     private var pathLabel: String {
