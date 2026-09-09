@@ -427,6 +427,20 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(FolderSchema.sanitize(fields.title), FolderSchema.sanitize(fields.title))
     }
 
+    func testExtractAsyncUsesHeuristicWhenFoundationModelsUnavailable() async {
+        let document = DocumentRecord(
+            relativePath: "Inbox/note.txt",
+            filename: "note.txt",
+            ocrText: "Factuur KBC Bank Totaal: 10,00"
+        )
+        let fields = await DocumentUnderstanding.extractAsync(from: document)
+        if !DocumentUnderstanding.foundationModelsAvailable {
+            XCTAssertEqual(fields.source, .heuristic)
+        }
+        XCTAssertFalse(fields.title.isEmpty)
+        XCTAssertNotEqual(fields.documentType, "import")
+    }
+
     func testClassifyFilenameMatchesCleanedTitleSlug() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryFile-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

@@ -559,7 +559,7 @@ public final class LibraryStore: ObservableObject {
             record.title,
             filename: record.filename,
             originalFilename: record.originalFilename
-        ) || fields.source == .foundationModels && record.title != fields.title
+        ) || (fields.source == .foundationModels && record.title != fields.title)
     }
 }
 
