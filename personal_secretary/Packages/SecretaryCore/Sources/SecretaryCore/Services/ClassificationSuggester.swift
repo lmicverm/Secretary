@@ -393,7 +393,7 @@ public enum ClassificationSuggester {
             .joined()
         let compact = String(joined.unicodeScalars.compactMap { scalar -> Character? in
             if CharacterSet.decimalDigits.contains(scalar) { return Character(scalar) }
-            guard scalar.properties.script == .latin else { return nil }
+            guard SuggestionSanitizer.isLatinScalar(scalar) else { return nil }
             return Character(scalar)
         })
         let cleaned = compact.isEmpty ? "Misc" : String(compact.prefix(40))
@@ -683,12 +683,25 @@ public enum SuggestionSanitizer {
         return false
     }
 
+    /// Basic Latin + Latin-1 Supplement + Latin Extended-A/B. Avoids `Unicode.Scalar.Properties.script`.
+    public static func isLatinScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x0000...0x007F,
+             0x0080...0x00FF,
+             0x0100...0x017F,
+             0x0180...0x024F:
+            return true
+        default:
+            return false
+        }
+    }
+
     public static func isMostlyLatin(_ text: String) -> Bool {
         let letters = text.filter(\.isLetter)
         if letters.isEmpty {
             return text.contains(where: \.isNumber)
         }
-        let latin = letters.filter { $0.unicodeScalars.allSatisfy { $0.properties.script == .latin } }
+        let latin = letters.filter { $0.unicodeScalars.allSatisfy(isLatinScalar) }
         return Double(latin.count) / Double(letters.count) >= 0.85
     }
 
