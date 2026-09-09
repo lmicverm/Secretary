@@ -245,59 +245,183 @@ enum Keychain {
     }
 }
 
+/// Result of an ingest operation with success/skip/error counts.
+public struct MailIngestResult: Sendable {
+    public var imported: Int = 0
+    public var skippedDuplicate: Int = 0
+    public var skippedUnsupported: Int = 0
+    public var errors: [String] = []
+    
+    public var total: Int { imported + skippedDuplicate + skippedUnsupported + errors.count }
+    public var hasErrors: Bool { !errors.isEmpty }
+    
+    public var summary: String {
+        var parts: [String] = []
+        if imported > 0 { parts.append("\(imported) imported") }
+        if skippedDuplicate > 0 { parts.append("\(skippedDuplicate) skipped (duplicate)") }
+        if skippedUnsupported > 0 { parts.append("\(skippedUnsupported) skipped (unsupported type)") }
+        if !errors.isEmpty { parts.append("\(errors.count) error(s)") }
+        return parts.isEmpty ? "Nothing to import" : parts.joined(separator: ", ")
+    }
+}
+
 /// Imports email attachments into the library Inbox.
 public struct MailIngestService: Sendable {
     public init() {}
+    
+    private static let supportedExtensions: Set<String> = [
+        "pdf",
+        "jpg", "jpeg", "png", "heic", "heif", "tiff", "tif", "gif", "webp",
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+        "odt", "ods", "odp",
+        "rtf", "txt", "csv",
+        "pages", "numbers", "keynote"
+    ]
+    
+    private static let junkFilenamePatterns: [String] = [
+        "signature", "logo", "banner", "footer", "header", "spacer", "pixel",
+        "tracking", "unsubscribe", "email-icon", "social-icon"
+    ]
+    
+    private static func isJunkAttachment(_ meta: AgentMailClient.AttachmentMeta) -> Bool {
+        let filename = (meta.filename ?? "").lowercased()
+        let contentType = (meta.contentType ?? "").lowercased()
+        
+        if filename.isEmpty && contentType.hasPrefix("image/") {
+            return true
+        }
+        
+        for pattern in junkFilenamePatterns {
+            if filename.contains(pattern) { return true }
+        }
+        
+        if filename.hasPrefix("image0") && contentType.hasPrefix("image/") {
+            return true
+        }
+        
+        return false
+    }
+    
+    private static func isSupportedAttachment(_ meta: AgentMailClient.AttachmentMeta) -> Bool {
+        let filename = meta.filename ?? ""
+        let ext = (filename as NSString).pathExtension.lowercased()
+        
+        if supportedExtensions.contains(ext) {
+            return true
+        }
+        
+        let contentType = (meta.contentType ?? "").lowercased()
+        if contentType == "application/pdf" { return true }
+        if contentType.hasPrefix("image/") && !contentType.contains("svg") { return true }
+        if contentType.contains("word") || contentType.contains("excel") ||
+           contentType.contains("powerpoint") || contentType.contains("spreadsheet") ||
+           contentType.contains("presentation") || contentType.contains("document") {
+            return true
+        }
+        
+        return false
+    }
 
-    public func ingestNewAttachments(into library: DocumentLibrary) async throws -> Int {
+    public func ingestNewAttachments(into library: DocumentLibrary) async throws -> MailIngestResult {
         guard let apiKey = MailboxSettings.apiKey, let inboxId = MailboxSettings.inboxId else {
             throw AgentMailClient.AgentMailError.notConfigured
         }
         let client = AgentMailClient(apiKey: apiKey)
         let processed = ProcessedMailStore(libraryRoot: library.rootURL)
+        let contentHashes = ContentHashStore(libraryRoot: library.rootURL)
         let messages = try await client.listMessages(inboxId: inboxId)
-        var count = 0
+        var result = MailIngestResult()
+        
         for message in messages {
             guard !processed.contains(message.messageId) else { continue }
+            
             let attachments = (message.attachments ?? []).filter { meta in
                 let disposition = (meta.contentDisposition ?? "attachment").lowercased()
-                if disposition == "inline", (meta.contentType ?? "").hasPrefix("image/") {
-                    // Skip tiny inline images / signatures unless named.
+                if disposition == "inline" {
+                    if Self.isJunkAttachment(meta) { return false }
                     return !(meta.filename ?? "").isEmpty
                 }
                 return true
             }
+            
             if attachments.isEmpty {
                 processed.mark(message.messageId)
                 continue
             }
+            
             for attachment in attachments {
-                let (data, filename) = try await client.downloadAttachment(
-                    inboxId: inboxId,
-                    messageId: message.messageId,
-                    attachmentId: attachment.attachmentId
-                )
-                let ext = (filename as NSString).pathExtension.isEmpty
-                    ? ((attachment.filename as NSString?)?.pathExtension ?? "pdf")
-                    : (filename as NSString).pathExtension
-                let hint = (filename as NSString).deletingPathExtension
-                let subjectHint = message.subject.map { FolderSchema.sanitize($0) } ?? hint
-                _ = try library.importData(
-                    data,
-                    filenameHint: subjectHint.isEmpty ? hint : "\(subjectHint)-\(hint)",
-                    pathExtension: ext.isEmpty ? "pdf" : ext
-                )
-                count += 1
+                do {
+                    if Self.isJunkAttachment(attachment) {
+                        result.skippedUnsupported += 1
+                        continue
+                    }
+                    
+                    if !Self.isSupportedAttachment(attachment) {
+                        result.skippedUnsupported += 1
+                        continue
+                    }
+                    
+                    let (data, filename) = try await client.downloadAttachment(
+                        inboxId: inboxId,
+                        messageId: message.messageId,
+                        attachmentId: attachment.attachmentId
+                    )
+                    
+                    let dataHash = ContentHasher.sha256(of: data)
+                    if contentHashes.contains(dataHash) {
+                        result.skippedDuplicate += 1
+                        continue
+                    }
+                    
+                    let ext = Self.normalizeExtension(
+                        filename: filename,
+                        fallbackFilename: attachment.filename,
+                        contentType: attachment.contentType
+                    )
+                    let hint = (filename as NSString).deletingPathExtension
+                    let subjectHint = message.subject.map { FolderSchema.sanitize($0) } ?? hint
+                    _ = try library.importData(
+                        data,
+                        filenameHint: subjectHint.isEmpty ? hint : "\(subjectHint)-\(hint)",
+                        pathExtension: ext
+                    )
+                    
+                    contentHashes.mark(dataHash)
+                    result.imported += 1
+                } catch {
+                    result.errors.append("\(attachment.filename ?? "attachment"): \(error.localizedDescription)")
+                }
             }
             processed.mark(message.messageId)
         }
-        return count
+        return result
+    }
+    
+    private static func normalizeExtension(filename: String, fallbackFilename: String?, contentType: String?) -> String {
+        var ext = (filename as NSString).pathExtension.lowercased()
+        if ext.isEmpty, let fallback = fallbackFilename {
+            ext = (fallback as NSString).pathExtension.lowercased()
+        }
+        if ext.isEmpty, let ct = contentType?.lowercased() {
+            if ct.contains("pdf") { ext = "pdf" }
+            else if ct.contains("jpeg") || ct.contains("jpg") { ext = "jpg" }
+            else if ct.contains("png") { ext = "png" }
+            else if ct.contains("heic") { ext = "heic" }
+            else if ct.contains("tiff") { ext = "tiff" }
+            else if ct.contains("gif") { ext = "gif" }
+            else if ct.contains("webp") { ext = "webp" }
+            else if ct.contains("word") { ext = "docx" }
+            else if ct.contains("excel") || ct.contains("spreadsheet") { ext = "xlsx" }
+            else if ct.contains("powerpoint") || ct.contains("presentation") { ext = "pptx" }
+        }
+        return ext.isEmpty ? "pdf" : ext
     }
 }
 
 final class ProcessedMailStore: @unchecked Sendable {
     private let url: URL
     private var ids: Set<String>
+    private let lock = NSLock()
 
     init(libraryRoot: URL) {
         url = libraryRoot
@@ -311,11 +435,60 @@ final class ProcessedMailStore: @unchecked Sendable {
         }
     }
 
-    func contains(_ id: String) -> Bool { ids.contains(id) }
+    func contains(_ id: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return ids.contains(id)
+    }
 
     func mark(_ id: String) {
+        lock.lock()
+        defer { lock.unlock() }
         ids.insert(id)
+        persist()
+    }
+    
+    private func persist() {
         let list = Array(ids).sorted()
+        if let data = try? JSONEncoder().encode(list) {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+}
+
+final class ContentHashStore: @unchecked Sendable {
+    private let url: URL
+    private var hashes: Set<String>
+    private let lock = NSLock()
+
+    init(libraryRoot: URL) {
+        url = libraryRoot
+            .appendingPathComponent(FolderSchema.metaFolder)
+            .appendingPathComponent("mail_content_hashes.json")
+        if let data = try? Data(contentsOf: url),
+           let list = try? JSONDecoder().decode([String].self, from: data) {
+            hashes = Set(list)
+        } else {
+            hashes = []
+        }
+    }
+
+    func contains(_ hash: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return hashes.contains(hash)
+    }
+
+    func mark(_ hash: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        hashes.insert(hash)
+        persist()
+    }
+    
+    private func persist() {
+        let list = Array(hashes).sorted()
         if let data = try? JSONEncoder().encode(list) {
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? data.write(to: url, options: .atomic)

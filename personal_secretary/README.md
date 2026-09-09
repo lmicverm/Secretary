@@ -49,6 +49,7 @@ Filenames: `YYYY-MM-DD__type__short-title.ext`
 |---|---|---|
 | Import / drag-drop | yes | Photos, Files |
 | Document scanner | — | VisionKit |
+| AgentMail ingest (email attachments) | yes | yes |
 | Classify (move into tree) | yes | yes |
 | Search (name, notes, OCR, FTS) | yes | yes |
 | Reveal in Finder / Open | yes | Share |

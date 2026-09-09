@@ -131,6 +131,8 @@ public final class LibraryStore: ObservableObject {
         #endif
     }
 
+    @Published public private(set) var lastMailIngestResult: MailIngestResult?
+    
     public func checkMailbox() async {
         guard let library else { return }
         guard MailboxSettings.isConfigured else {
@@ -140,16 +142,18 @@ public final class LibraryStore: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         do {
-            let count = try await MailIngestService().ingestNewAttachments(into: library)
-            if count > 0 {
+            let result = try await MailIngestService().ingestNewAttachments(into: library)
+            lastMailIngestResult = result
+            if result.imported > 0 {
                 let pending = try library.search(DocumentFilter(inboxOnly: true))
-                for record in pending.prefix(count) {
+                for record in pending.prefix(result.imported) {
                     Task { await self.runOCRAndIndex(documentID: record.id) }
                 }
                 reload()
-                statusMessage = "Imported \(count) attachment(s) from mailbox → Inbox"
-            } else {
-                statusMessage = "Mailbox checked — nothing new"
+            }
+            statusMessage = result.summary
+            if result.hasErrors {
+                errorMessage = result.errors.joined(separator: "\n")
             }
         } catch {
             errorMessage = error.localizedDescription
