@@ -123,7 +123,8 @@ public struct FolderSchema: Sendable {
         let collapsed = String(filtered)
             .replacingOccurrences(of: "--+", with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return collapsed.isEmpty ? "document" : collapsed.lowercased()
+        let slug = collapsed.isEmpty ? "document" : collapsed.lowercased()
+        return String(slug.prefix(60))
     }
 
     public static func parsePath(_ relativePath: String) -> (space: DocumentSpace?, category: String?, year: Int?, isInbox: Bool) {

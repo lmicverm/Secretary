@@ -1,3 +1,4 @@
+import SecretaryCore
 import SwiftUI
 
 /// Quiet ink-on-paper look for a personal archive.
@@ -45,12 +46,44 @@ enum SecretaryTheme {
     // MARK: - Layout
     
     static let sidebarWidth: CGFloat = 220
+    #if os(macOS)
+    static let listWidth: CGFloat = 340
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.macSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
+    #else
     static let listWidth: CGFloat = 320
+    /// Readable form width on iOS stacked detail.
     static let detailContentMax: CGFloat = 680
-    static let windowMinWidth: CGFloat = 960
-    static let windowMinHeight: CGFloat = 600
-    static let windowDefaultWidth: CGFloat = 1180
-    static let windowDefaultHeight: CGFloat = 740
+    #if os(macOS)
+    /// When the detail pane is at least this wide, metadata sits left and preview fills the rest.
+    static let detailSplitMinWidth: CGFloat = 640
+    static let detailMetaMinWidth: CGFloat = 320
+    static let detailMetaMaxWidth: CGFloat = 400
+    static let previewMinHeight: CGFloat = 420
+    static let previewIdealHeight: CGFloat = 520
+    static let previewMaxHeight: CGFloat = 920
+    static let previewHeightRatio: CGFloat = 0.55
+    #else
+    static let previewMinHeight: CGFloat = 220
+    static let previewIdealHeight: CGFloat = 260
+    static let previewMaxHeight: CGFloat = 320
+    #endif
+    static let windowMinWidth: CGFloat = 1100
+    static let windowMinHeight: CGFloat = 640
+    static let windowDefaultWidth: CGFloat = 1440
+    static let windowDefaultHeight: CGFloat = 860
+
+    #if os(macOS)
+    static func metaColumnWidth(for detailWidth: CGFloat) -> CGFloat {
+        min(detailMetaMaxWidth, max(detailMetaMinWidth, detailWidth * 0.36))
+    }
+
+    static func previewHeight(forViewport viewportHeight: CGFloat) -> CGFloat {
+        let proposed = viewportHeight * previewHeightRatio
+        return min(previewMaxHeight, max(previewMinHeight, proposed))
+    }
+    #endif
 }
 
 // MARK: - Typography
@@ -119,22 +152,41 @@ struct SecretaryPanel<Content: View>: View {
     }
 }
 
-/// Keeps detail content readable instead of stretching edge-to-edge on wide screens.
+/// Centered readable column for iOS (and any stacked form that should not stretch edge-to-edge).
 struct DetailPage<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ScrollView {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                content()
-                    .frame(maxWidth: SecretaryTheme.detailContentMax, alignment: .leading)
-                    .padding(.horizontal, SecretaryTheme.pagePadding)
-                    .padding(.vertical, SecretaryTheme.spacingXL)
-                Spacer(minLength: 0)
+        GeometryReader { geo in
+            let metrics = Self.metrics(for: geo.size)
+            ScrollView {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    content()
+                        .frame(maxWidth: metrics.contentWidth, alignment: .leading)
+                        .padding(.horizontal, SecretaryTheme.pagePadding)
+                        .padding(.vertical, SecretaryTheme.spacingXL)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private static func metrics(for size: CGSize) -> DetailLayoutMetrics {
+        #if os(macOS)
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: true
+        )
+        #else
+        DetailLayoutMetrics.resolve(
+            availableWidth: size.width,
+            availableHeight: size.height,
+            isMac: false
+        )
+        #endif
     }
 }
 

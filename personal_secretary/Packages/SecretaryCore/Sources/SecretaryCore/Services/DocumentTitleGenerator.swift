@@ -9,11 +9,15 @@ public enum DocumentTitleGenerator {
         ocrText: String = "",
         documentType: String? = nil
     ) -> String {
-        if let fromOCR = titleFromOCR(ocrText, hintType: documentType), !fromOCR.isEmpty {
-            return fromOCR
-        }
         let source = originalFilename.isEmpty ? filename : originalFilename
-        return titleFromFilename(source, documentType: documentType)
+        let fromFile = titleFromFilename(source, documentType: documentType)
+        if let fromOCR = titleFromOCR(ocrText, hintType: documentType), !fromOCR.isEmpty {
+            if SuggestionSanitizer.isAcceptablePhrase(fromOCR),
+               !SuggestionSanitizer.looksLikeOCRFragment(fromOCR, filenameTitle: fromFile) {
+                return fromOCR
+            }
+        }
+        return fromFile
     }
 
     public static func titleFromFilename(_ filename: String, documentType: String? = nil) -> String {
@@ -41,15 +45,37 @@ public enum DocumentTitleGenerator {
         return String(title.prefix(72)).trimmingCharacters(in: .whitespacesAndNewlines).capitalizedWords
     }
 
-    public static func titleFromOCR(_ text: String, hintType: String? = nil) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 12 else { return nil }
-
-        let lines = trimmed
+    /// First short OCR line that looks like an issuer / correspondent name.
+    public static func correspondentHint(from ocrText: String) -> String? {
+        let lines = ocrText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && $0.count >= 4 && $0.count <= 90 }
             .prefix(12)
+
+        let issuer = lines.first { line in
+            let lower = line.lowercased()
+            if lower.range(of: #"^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}$"#, options: .regularExpression) != nil {
+                return false
+            }
+            if lower.contains("page ") || lower.hasPrefix("http") { return false }
+            let blocked: Set<String> = [
+                "factuur", "invoice", "creditnota", "btw", "vat", "totaal", "total",
+                "aanslagbiljet", "verzekering", "polis"
+            ]
+            if blocked.contains(where: { lower == $0 || lower.hasPrefix($0 + " ") }) { return false }
+            guard SuggestionSanitizer.isAcceptablePhrase(line) else { return false }
+            let letters = line.filter(\.isLetter).count
+            return letters >= 4 && line.count <= 48
+        }
+        guard let issuer else { return nil }
+        return String(issuer.prefix(48)).capitalizedWords
+    }
+
+    public static func titleFromOCR(_ text: String, hintType: String? = nil) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 12 else { return nil }
 
         let patterns: [(String, String)] = [
             (#"(?i)\baanslagbiljet\b"#, "Aanslagbiljet"),
@@ -78,16 +104,7 @@ public enum DocumentTitleGenerator {
             }
         }
 
-        // Issuer / counterparty: first short line that looks like a name (not a date-only line).
-        let issuer = lines.first { line in
-            let lower = line.lowercased()
-            if lower.range(of: #"^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}$"#, options: .regularExpression) != nil {
-                return false
-            }
-            if lower.contains("page ") || lower.hasPrefix("http") { return false }
-            let letters = line.filter(\.isLetter).count
-            return letters >= 4 && line.count <= 48
-        }
+        let issuer = correspondentHint(from: text)
 
         if let subject, let issuer {
             let cleanIssuer = issuer.capitalizedWords

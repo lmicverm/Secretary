@@ -171,8 +171,18 @@ struct DocumentListView: View {
         for provider in providers {
             provider.loadFileRepresentation(forTypeIdentifier: UTType.data.identifier) { url, _ in
                 guard let url else { return }
-                let temp = FileManager.default.temporaryDirectory.appendingPathComponent(url.lastPathComponent)
-                try? FileManager.default.copyItem(at: url, to: temp)
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                let ext = url.pathExtension.isEmpty ? "pdf" : url.pathExtension
+                let temp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension(ext)
+                do {
+                    try FileManager.default.copyItem(at: url, to: temp)
+                } catch {
+                    NSLog("Secretary: drop copy failed for \(url.lastPathComponent): \(error.localizedDescription)")
+                    return
+                }
                 DispatchQueue.main.async {
                     store.importURLs([temp])
                 }
@@ -281,25 +291,33 @@ struct MacImportButton: View {
     var body: some View {
         Menu {
             Button("Import Files…") {
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = true
-                panel.canChooseDirectories = false
-                panel.allowedContentTypes = SecretaryUTTypes.importTypes
-                if panel.runModal() == .OK {
-                    store.importURLs(panel.urls)
-                }
+                presentOpenPanel(files: true)
             }
             Button("Import Folder into Inbox…") {
-                let panel = NSOpenPanel()
-                panel.allowsMultipleSelection = false
-                panel.canChooseDirectories = true
-                panel.canChooseFiles = false
-                if panel.runModal() == .OK, let folder = panel.url {
-                    store.importFolder(folder)
-                }
+                presentOpenPanel(files: false)
             }
         } label: {
             Label("Import", systemImage: "plus")
+        }
+    }
+
+    /// SwiftUI Menu is still tracking when this action runs. `NSOpenPanel.runModal()`
+    /// in that state is a known AppKit abort (`__pthread_kill`). Wait a turn first.
+    private func presentOpenPanel(files: Bool) {
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = files
+            panel.canChooseDirectories = !files
+            panel.canChooseFiles = files
+            if files {
+                panel.allowedContentTypes = SecretaryUTTypes.importTypes
+            }
+            guard panel.runModal() == .OK else { return }
+            if files {
+                store.importURLs(panel.urls)
+            } else if let folder = panel.url {
+                store.importFolder(folder)
+            }
         }
     }
 }

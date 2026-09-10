@@ -83,6 +83,9 @@ public final class DocumentLibrary: @unchecked Sendable {
         try queue.sync {
             let accessing = sourceURL.startAccessingSecurityScopedResource()
             defer { if accessing { sourceURL.stopAccessingSecurityScopedResource() } }
+            if !accessing {
+                NSLog("Secretary: importFile has no security-scoped access for \(sourceURL.lastPathComponent)")
+            }
 
             let ext = sourceURL.pathExtension.isEmpty ? "pdf" : sourceURL.pathExtension
             let base = preferredName ?? sourceURL.deletingPathExtension().lastPathComponent
@@ -142,9 +145,11 @@ public final class DocumentLibrary: @unchecked Sendable {
             try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
 
             let ext = (record.filename as NSString).pathExtension
+            let cleanTitle = ClassificationSuggester.cleanedDisplayTitle(target.shortTitle, document: record)
+            let cleanType = ClassificationSuggester.cleanedDocumentType(target.documentType)
             let newName = FolderSchema.makeFilename(
-                documentType: target.documentType,
-                shortTitle: target.shortTitle,
+                documentType: cleanType,
+                shortTitle: cleanTitle,
                 pathExtension: ext
             )
             let dest = uniqueURL(in: folder, filename: newName)
@@ -160,9 +165,19 @@ public final class DocumentLibrary: @unchecked Sendable {
             record.space = parsed.space
             record.category = parsed.category
             record.year = FolderSchema.normalizedYear(parsed.year ?? target.year)
-            record.title = target.shortTitle
+            record.title = cleanTitle
             record.notes = target.notes
-            record.tags = target.tags
+            if !target.tags.isEmpty {
+                record.tags = target.tags
+            } else if record.tags.isEmpty {
+                record.tags = ClassificationSuggester.suggestedTags(
+                    for: record,
+                    space: target.space,
+                    category: target.category,
+                    year: FolderSchema.normalizedYear(parsed.year ?? target.year),
+                    documentType: target.documentType
+                )
+            }
             record.expiryDate = target.expiryDate
             record.modifiedAt = Date()
             record.indexedAt = Date()
@@ -216,7 +231,6 @@ public final class DocumentLibrary: @unchecked Sendable {
             }
             if let title { record.title = title }
             if let notes { record.notes = notes }
-            if let tags { record.tags = tags }
             if let isFavorite {
                 record.isFavorite = isFavorite
                 if isFavorite {
@@ -226,6 +240,15 @@ public final class DocumentLibrary: @unchecked Sendable {
             }
             if let expiryDate { record.expiryDate = expiryDate }
             if let ocrText { record.ocrText = ocrText }
+            if let tags {
+                if tags.isEmpty, record.tags.isEmpty {
+                    record.tags = ClassificationSuggester.suggestedTags(for: record)
+                } else {
+                    record.tags = tags
+                }
+            } else if record.tags.isEmpty {
+                record.tags = ClassificationSuggester.suggestedTags(for: record)
+            }
             record.modifiedAt = Date()
             record.indexedAt = Date()
             try index.upsert(record)

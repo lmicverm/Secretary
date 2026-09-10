@@ -86,6 +86,236 @@ final class SecretaryCoreTests: XCTestCase {
             suggestions.contains { $0.category == "Utilities" && $0.isNewCategory },
             "Expected a new Utilities category suggestion, got \(suggestions.map(\.category))"
         )
+        XCTAssertTrue(
+            suggestions.contains { $0.category == "Utilities" && !$0.tags.isEmpty },
+            "Expected tag suggestions on classify, got \(suggestions.map(\.tags))"
+        )
+    }
+
+    func testRepeatedImportsAfterRefreshFromDisk() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryImport-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        try library.refreshFromDisk()
+
+        for i in 0..<3 {
+            let source = root.appendingPathComponent("file-\(i).txt")
+            try "content \(i) tax document".write(to: source, atomically: true, encoding: .utf8)
+            let imported = try library.importFile(from: source, preferredName: "file-\(i)")
+            XCTAssertTrue(imported.isInbox)
+            XCTAssertFalse(imported.id.isEmpty)
+        }
+
+        let inbox = try library.search(DocumentFilter(inboxOnly: true))
+        XCTAssertEqual(inbox.count, 3)
+    }
+
+    func testImportDataWritesInboxRecord() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryScan-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let record = try library.importData(Data("scan-bytes".utf8), filenameHint: "letter-scan", pathExtension: "txt")
+        XCTAssertTrue(record.isInbox)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: library.fileURL(for: record).path))
+    }
+
+    func testResolveRootFallsBackWithoutiCloudContainer() {
+        LibraryLocation.clearCustomRoot()
+        // Without a ubiquity container (Personal Team / missing entitlement), resolveRoot
+        // must still return a usable Application Support path.
+        let noCloud = NoUbiquityFileManager()
+        let root = LibraryLocation.resolveRoot(fileManager: noCloud)
+        let expected = noCloud.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(LibraryLocation.folderName, isDirectory: true)
+        XCTAssertEqual(root.path, expected.path)
+        XCTAssertFalse(root.path.contains("Mobile Documents"))
+    }
+
+    func testSuggestedTagsFromBelgianInvoiceCues() {
+        let record = DocumentRecord(
+            relativePath: "Inbox/factuur.pdf",
+            filename: "2024-03-15__invoice__acme-nv.pdf",
+            originalFilename: "Factuur ACME.pdf",
+            ocrText: """
+            ACME NV
+            Factuur
+            BTW BE 0123.456.789
+            RSVZ bijdrage 2024
+            """
+        )
+        let tags = ClassificationSuggester.suggestedTags(for: record, space: .bv, category: "Invoices", year: 2024)
+        let lowered = tags.map { $0.lowercased() }
+        XCTAssertTrue(lowered.contains("factuur"), "Expected Factuur tag, got \(tags)")
+        XCTAssertTrue(lowered.contains("btw"), "Expected BTW tag, got \(tags)")
+        XCTAssertTrue(lowered.contains("rsvz"), "Expected RSVZ tag, got \(tags)")
+        XCTAssertTrue(tags.contains("2024"), "Expected year tag, got \(tags)")
+        XCTAssertTrue(lowered.contains("invoices") || lowered.contains("invoice"), "Expected invoice category/type, got \(tags)")
+    }
+
+    func testSuggestedTagsPrefillOnOCRUpdateWhenEmpty() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryTags-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("invoice.txt")
+        try "placeholder".write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "acme-factuur")
+        XCTAssertTrue(imported.tags.isEmpty)
+
+        let updated = try library.updateMetadata(
+            documentID: imported.id,
+            ocrText: "ACME NV\nFactuur\nBTW BE 0123.456.789"
+        )
+        XCTAssertFalse(updated.tags.isEmpty, "OCR update should prefill tags when empty")
+        let lowered = updated.tags.map { $0.lowercased() }
+        XCTAssertTrue(lowered.contains("factuur") || lowered.contains("btw"), "Expected Belgian cues, got \(updated.tags)")
+    }
+
+    func testUpdateMetadataDoesNotOverwriteExistingTags() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryTagsKeep-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("keep.txt")
+        try "keep".write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "keep")
+        _ = try library.updateMetadata(documentID: imported.id, tags: ["keep-me"])
+
+        let updated = try library.updateMetadata(
+            documentID: imported.id,
+            ocrText: "Factuur BTW RSVZ 2024"
+        )
+        XCTAssertEqual(updated.tags, ["keep-me"])
+    }
+
+    func testClassifyFillsEmptyTags() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryTagsClassify-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("tax.txt")
+        try "aanslagbiljet personenbelasting 2023".write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "aanslag")
+        // Seed OCR without going through updateMetadata's empty-tag prefill.
+        _ = try library.updateMetadata(documentID: imported.id, tags: ["__clear_placeholder__"], ocrText: "aanslagbiljet personenbelasting 2023")
+        // Explicit non-empty then classify with empty target tags should keep existing tags.
+        let kept = try library.classify(
+            documentID: imported.id,
+            as: ClassificationTarget(
+                space: .personal,
+                category: "Tax",
+                year: 2023,
+                documentType: "tax",
+                shortTitle: "aanslag-keep",
+                tags: []
+            )
+        )
+        XCTAssertEqual(kept.tags, ["__clear_placeholder__"])
+
+        let inbox2 = root.appendingPathComponent("tax2.txt")
+        try "aanslagbiljet personenbelasting 2023".write(to: inbox2, atomically: true, encoding: .utf8)
+        let imported2 = try library.importFile(from: inbox2, preferredName: "aanslag-empty")
+        // Write OCR onto a still-empty tag list (placeholder then user-clear is not possible;
+        // use updateMetadata(ocrText:) with tags omitted after a fresh import).
+        let withOCR = try library.updateMetadata(documentID: imported2.id, ocrText: "aanslagbiljet personenbelasting 2023")
+        XCTAssertFalse(withOCR.tags.isEmpty, "OCR path should already prefill")
+
+        let inbox3 = root.appendingPathComponent("tax3.txt")
+        try "hello".write(to: inbox3, atomically: true, encoding: .utf8)
+        let imported3 = try library.importFile(from: inbox3, preferredName: "plain")
+        XCTAssertTrue(imported3.tags.isEmpty)
+        let classified = try library.classify(
+            documentID: imported3.id,
+            as: ClassificationTarget(
+                space: .personal,
+                category: "Tax",
+                year: 2023,
+                documentType: "tax",
+                shortTitle: "plain-tax",
+                notes: "aanslagbiljet personenbelasting",
+                tags: []
+            )
+        )
+        XCTAssertFalse(classified.tags.isEmpty, "Classify should prefill tags when both target and record are empty")
+        let lowered = classified.tags.map { $0.lowercased() }
+        XCTAssertTrue(
+            classified.tags.contains("2023") || lowered.contains("tax") || lowered.contains("belasting"),
+            "Expected useful tags, got \(classified.tags)"
+        )
+    }
+
+    func testSanitizerRejectsCyrillicAndJunk() {
+        XCTAssertFalse(SuggestionSanitizer.isAcceptableLabel("Підетидегіке"))
+        XCTAssertFalse(SuggestionSanitizer.isAcceptableCategory("Підетидегіке"))
+        XCTAssertFalse(SuggestionSanitizer.isAcceptableLabel("PfO6D4aa"))
+        XCTAssertFalse(SuggestionSanitizer.isAcceptablePhrase("ALL CUL"))
+        XCTAssertFalse(SuggestionSanitizer.isAcceptableDocumentType("import"))
+        XCTAssertTrue(SuggestionSanitizer.isAcceptablePhrase("Aanvraag tot identificatie"))
+        XCTAssertTrue(SuggestionSanitizer.isAcceptableCategory("Tax"))
+        XCTAssertTrue(SuggestionSanitizer.isAcceptableLabel("Factuur"))
+        XCTAssertEqual(ClassificationSuggester.sanitizeCategoryName("Підетидегіке"), "Misc")
+    }
+
+    func testSuggestionsRejectCyrillicAndReferenceCodes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretarySanitize-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("junk.txt")
+        try "Підетидегіке\nPfO6D4aa\nALL CUL\nBTW factuur 2025".write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "aanvraag-tot-identificatie-voor-btw")
+        let updated = try library.updateMetadata(
+            documentID: imported.id,
+            ocrText: "Підетидегіке\nPfO6D4aa\nALL CUL\nBTW factuur 2025"
+        )
+        let suggestions = try library.suggestions(for: updated)
+        XCTAssertFalse(
+            suggestions.contains { SuggestionSanitizer.isMostlyLatin($0.category) == false },
+            "Cyrillic leaked into categories: \(suggestions.map(\.category))"
+        )
+        XCTAssertFalse(
+            suggestions.contains { $0.shortTitle.contains("PfO") || $0.shortTitle.contains("ALL CUL") || $0.documentType.contains("PfO") },
+            "Junk title/type leaked: \(suggestions.map { "\($0.shortTitle)/\($0.documentType)" })"
+        )
+        XCTAssertTrue(
+            suggestions.contains { $0.category == "Invoices" || $0.category == "Tax" },
+            "Expected a taxonomy suggestion, got \(suggestions.map(\.destinationLabel))"
+        )
+    }
+
+    func testClassifyFilenameUsesCleanedTitleNotImportStub() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryName-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = try DocumentLibrary(rootURL: root)
+        let source = root.appendingPathComponent("aanvraag-tot-identificatie-voor-btw.txt")
+        try "BTW factuur".write(to: source, atomically: true, encoding: .utf8)
+        let imported = try library.importFile(from: source, preferredName: "aanvraag-tot-identificatie-voor-btw")
+        XCTAssertTrue(imported.filename.contains("__import__"))
+
+        let classified = try library.classify(
+            documentID: imported.id,
+            as: ClassificationTarget(
+                space: .bv,
+                category: "Tax",
+                year: 2025,
+                documentType: "import",
+                shortTitle: "PfO6D4aa",
+                notes: "BTW factuur FOD Financiën"
+            )
+        )
+        XCTAssertFalse(classified.filename.contains("__import__"), "Inbox type leaked into filed name: \(classified.filename)")
+        XCTAssertFalse(classified.filename.lowercased().contains("pfo6"), "Reference code used as filename: \(classified.filename)")
+        XCTAssertEqual(classified.title.lowercased().contains("pfo6"), false)
+        XCTAssertTrue(
+            classified.filename.contains("aanvraag-tot-identificatie")
+                || classified.title.localizedCaseInsensitiveContains("Aanvraag"),
+            "Expected filename/title from the original name, got title=\(classified.title) file=\(classified.filename)"
+        )
+        XCTAssertTrue(classified.filename.contains("__document__") || classified.filename.contains("__tax__"))
+        XCTAssertFalse(classified.tags.isEmpty, "Classify should still autofill tags, got \(classified.tags)")
     }
 
     func testParsePath() {
@@ -96,5 +326,68 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.space, .personal)
         XCTAssertEqual(tax.category, "Tax")
         XCTAssertEqual(tax.year, 2023)
+    }
+
+    func testIOSDetailLayoutStaysCompact() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 390,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(metrics.contentWidth, 390)
+        XCTAssertEqual(metrics.previewMinHeight, 220)
+        XCTAssertEqual(metrics.previewMaxHeight, 320)
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.sideColumnWidth, 0)
+
+        let widePhone = DetailLayoutMetrics.resolve(
+            availableWidth: 900,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(widePhone.contentWidth, DetailLayoutMetrics.iosContentMax)
+        XCTAssertFalse(widePhone.usesSideColumn)
+    }
+
+    func testMacStackedDetailGrowsPreviewWithWindow() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 640,
+            availableHeight: 700,
+            isMac: true
+        )
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 640 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMinHeight, 320)
+        XCTAssertEqual(metrics.previewMinHeight, 700 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMaxHeight, metrics.previewMinHeight)
+    }
+
+    func testMacWideDetailUsesSideColumnAndRaisedCap() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 1040,
+            availableHeight: 900,
+            isMac: true
+        )
+        XCTAssertTrue(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 1040 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMin)
+        XCTAssertLessThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMax)
+        XCTAssertGreaterThanOrEqual(metrics.previewMinHeight, DetailLayoutMetrics.macPreviewMin)
+        XCTAssertEqual(metrics.previewMinHeight, 900 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+
+        let huge = DetailLayoutMetrics.resolve(
+            availableWidth: 2000,
+            availableHeight: 1200,
+            isMac: true
+        )
+        XCTAssertEqual(huge.contentWidth, DetailLayoutMetrics.macContentMax)
+        XCTAssertTrue(huge.usesSideColumn)
+    }
+}
+
+/// FileManager that never reports an iCloud ubiquity container (Personal Team / no entitlement).
+private final class NoUbiquityFileManager: FileManager {
+    override func url(forUbiquityContainerIdentifier identifier: String?) -> URL? {
+        nil
     }
 }

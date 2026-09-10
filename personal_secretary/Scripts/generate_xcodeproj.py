@@ -131,6 +131,7 @@ def main() -> None:
     info_share = add_file("Apps/ShareExtension/Info.plist")
     ent_ios = add_file("Apps/Secretary/Resources/Secretary.entitlements")
     ent_mac = add_file("Apps/Secretary/Resources/Secretary-macOS.entitlements")
+    ent_mac_debug = add_file("Apps/Secretary/Resources/Secretary-macOS-Debug.entitlements")
     ent_share = add_file("Apps/ShareExtension/ShareExtension.entitlements")
 
     # Build PBXFileReference section
@@ -221,6 +222,7 @@ def main() -> None:
             f'\t\t\t\t{info_mac} /* Info-macOS.plist */,',
             f'\t\t\t\t{ent_ios} /* Secretary.entitlements */,',
             f'\t\t\t\t{ent_mac} /* Secretary-macOS.entitlements */,',
+            f'\t\t\t\t{ent_mac_debug} /* Secretary-macOS-Debug.entitlements */,',
         ]
     )
     share_children = "\n".join(
@@ -593,7 +595,7 @@ def main() -> None:
 		{IDS["debug_ios"]} /* Debug */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
 				CODE_SIGN_IDENTITY = "-";
@@ -623,7 +625,7 @@ def main() -> None:
 		{IDS["release_ios"]} /* Release */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = Apps/Secretary/Resources/Secretary.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -652,9 +654,9 @@ def main() -> None:
 		{IDS["debug_mac"]} /* Debug */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS-Debug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -663,6 +665,7 @@ def main() -> None:
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -679,7 +682,7 @@ def main() -> None:
 		{IDS["release_mac"]} /* Release */ = {{
 			isa = XCBuildConfiguration;
 			buildSettings = {{
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Apps/Secretary/Resources/Secretary-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -690,6 +693,7 @@ def main() -> None:
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Apps/Secretary/Resources/Info-macOS.plist";
+				INFOPLIST_KEY_NSHighResolutionCapable = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
