@@ -28,6 +28,12 @@ struct SecretaryApp: App {
         )
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .textEditing) {
+                Button("Find in Document") {
+                    NotificationCenter.default.post(name: .secretaryFindInDocument, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: .command)
+            }
             CommandMenu("Library") {
                 Button("Scan Drop Folder") {
                     Task { await store.scanDropFolder() }

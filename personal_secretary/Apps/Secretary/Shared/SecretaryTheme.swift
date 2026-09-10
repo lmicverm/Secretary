@@ -52,18 +52,15 @@ enum SecretaryTheme {
     static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
     static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
     /// When the detail pane is at least this wide, metadata sits left and preview fills the rest.
-    static let detailSplitMinWidth: CGFloat = 640
-    static let detailMetaMinWidth: CGFloat = 320
-    static let detailMetaMaxWidth: CGFloat = 400
+    static let detailSplitMinWidth = CGFloat(DetailSplitLayout.minimumSplitWidth)
+    static let detailMetaMinWidth = CGFloat(DetailSplitLayout.metaMinWidth)
+    static let detailPreviewMinWidth = CGFloat(DetailSplitLayout.previewMinWidth)
     static let previewMinHeight: CGFloat = 420
     static let previewIdealHeight: CGFloat = 520
     static let previewMaxHeight: CGFloat = 920
     static let previewHeightRatio: CGFloat = 0.55
 
-    static func metaColumnWidth(for detailWidth: CGFloat) -> CGFloat {
-        min(detailMetaMaxWidth, max(detailMetaMinWidth, detailWidth * 0.36))
-    }
-
+    #if os(macOS)
     static func previewHeight(forViewport viewportHeight: CGFloat) -> CGFloat {
         let proposed = viewportHeight * previewHeightRatio
         return min(previewMaxHeight, max(previewMinHeight, proposed))

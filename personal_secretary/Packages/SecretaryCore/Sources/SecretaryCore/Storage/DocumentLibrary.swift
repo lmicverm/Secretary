@@ -145,9 +145,20 @@ public final class DocumentLibrary: @unchecked Sendable {
             try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
 
             let ext = (record.filename as NSString).pathExtension
-            let cleanTitle = ClassificationSuggester.cleanedDisplayTitle(target.shortTitle, document: record)
-            let cleanType = ClassificationSuggester.cleanedDocumentType(target.documentType)
+            let fields = DocumentUnderstanding.extract(
+                from: record,
+                preferredTitle: target.shortTitle,
+                preferredType: target.documentType,
+                preferredTags: target.tags
+            )
+            let cleanTitle = fields.title
+            let cleanType = fields.documentType
+            let fileDate = target.documentDate
+                ?? fields.documentDate
+                ?? FolderSchema.documentDate(fromFilename: record.filename)
+                ?? Date()
             let newName = FolderSchema.makeFilename(
+                date: fileDate,
                 documentType: cleanType,
                 shortTitle: cleanTitle,
                 pathExtension: ext
@@ -170,15 +181,21 @@ public final class DocumentLibrary: @unchecked Sendable {
             if !target.tags.isEmpty {
                 record.tags = target.tags
             } else if record.tags.isEmpty {
-                record.tags = ClassificationSuggester.suggestedTags(
-                    for: record,
-                    space: target.space,
-                    category: target.category,
-                    year: FolderSchema.normalizedYear(parsed.year ?? target.year),
-                    documentType: target.documentType
-                )
+                record.tags = fields.tags.isEmpty
+                    ? ClassificationSuggester.suggestedTags(
+                        for: record,
+                        space: target.space,
+                        category: target.category,
+                        year: FolderSchema.normalizedYear(parsed.year ?? target.year),
+                        documentType: cleanType
+                    )
+                    : fields.tags
             }
-            record.expiryDate = target.expiryDate
+            record.expiryDate = target.expiryDate ?? record.expiryDate ?? fields.dueDate
+            if fields.looksLikeInvoice, record.paymentStatus == .notApplicable {
+                record.paymentStatus = .unpaid
+            }
+            record.tags = record.paymentStatus.syncedTags(record.tags)
             record.modifiedAt = Date()
             record.indexedAt = Date()
             try index.upsert(record)
@@ -223,7 +240,9 @@ public final class DocumentLibrary: @unchecked Sendable {
         tags: [String]? = nil,
         isFavorite: Bool? = nil,
         expiryDate: Date?? = nil,
-        ocrText: String? = nil
+        ocrText: String? = nil,
+        paymentStatus: PaymentStatus? = nil,
+        paidAt: Date?? = nil
     ) throws -> DocumentRecord {
         try queue.sync {
             guard var record = try index.fetch(id: documentID) else {
@@ -240,6 +259,11 @@ public final class DocumentLibrary: @unchecked Sendable {
             }
             if let expiryDate { record.expiryDate = expiryDate }
             if let ocrText { record.ocrText = ocrText }
+            if let paymentStatus { record.paymentStatus = paymentStatus }
+            if let paidAt { record.paidAt = paidAt }
+            if paymentStatus != nil || (tags != nil && (tags?.contains(where: { ["paid", "unpaid"].contains($0.lowercased()) }) == true)) {
+                record.tags = record.paymentStatus.syncedTags(record.tags)
+            }
             if let tags {
                 if tags.isEmpty, record.tags.isEmpty {
                     record.tags = ClassificationSuggester.suggestedTags(for: record)

@@ -19,6 +19,9 @@ public final class LibraryStore: ObservableObject {
     @Published public private(set) var rootPath: String = ""
     @Published public private(set) var usingiCloud = false
     @Published public private(set) var usingCustomRoot = false
+    @Published public var pendingSettingsTab: String?
+    @Published public private(set) var mailboxConfigured = false
+    @Published public private(set) var mailboxEmail: String?
 
     public private(set) var library: DocumentLibrary?
     private var accessedRootURL: URL?
@@ -50,6 +53,7 @@ public final class LibraryStore: ObservableObject {
             usingiCloud = LibraryLocation.isUsingiCloud
             usingCustomRoot = LibraryLocation.isUsingCustomRoot
             try lib.refreshFromDisk()
+            refreshMailboxStatus()
             reload()
             if usingCustomRoot {
                 statusMessage = "Library: \(rootPath)"
@@ -141,6 +145,15 @@ public final class LibraryStore: ObservableObject {
 
     @Published public private(set) var lastMailIngestResult: MailIngestResult?
     
+    public func refreshMailboxStatus() {
+        mailboxConfigured = MailboxSettings.isConfigured
+        mailboxEmail = MailboxSettings.inboxEmail
+    }
+
+    public func openMailboxSettings() {
+        pendingSettingsTab = "mailbox"
+    }
+
     public func checkMailbox() async {
         guard let library else { return }
         guard MailboxSettings.isConfigured else {
@@ -170,7 +183,7 @@ public final class LibraryStore: ObservableObject {
 
     public func setupMailbox(apiKey: String, username: String) async {
         do {
-            MailboxSettings.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            try MailboxSettings.storeAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
             let client = AgentMailClient(apiKey: MailboxSettings.apiKey!)
             // Reuse existing inbox if listed
             let existing = try await client.listInboxes()
@@ -178,12 +191,14 @@ public final class LibraryStore: ObservableObject {
                 MailboxSettings.inboxId = match.inboxId
                 MailboxSettings.inboxEmail = match.email
                 statusMessage = "Linked mailbox \(match.email ?? match.inboxId)"
+                refreshMailboxStatus()
                 return
             }
             let created = try await client.createInbox(username: username, clientId: "secretary-v1")
             MailboxSettings.inboxId = created.inboxId
             MailboxSettings.inboxEmail = created.email
             statusMessage = "Created mailbox \(created.email ?? created.inboxId)"
+            refreshMailboxStatus()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -404,15 +419,31 @@ public final class LibraryStore: ObservableObject {
         }
     }
 
-    public func saveMetadata(_ document: DocumentRecord, title: String, notes: String, tags: [String], expiry: Date?) {
+    public func saveMetadata(
+        _ document: DocumentRecord,
+        title: String,
+        notes: String,
+        tags: [String],
+        expiry: Date?,
+        paymentStatus: PaymentStatus? = nil,
+        paidAt: Date? = nil
+    ) {
         guard let library else { return }
         do {
+            var status = paymentStatus
+            var paid = paidAt
+            if let status {
+                if status == .paid, paid == nil { paid = Date() }
+                if status != .paid { paid = nil }
+            }
             let updated = try library.updateMetadata(
                 documentID: document.id,
                 title: title,
                 notes: notes,
-                tags: tags,
-                expiryDate: .some(expiry)
+                tags: status?.syncedTags(tags) ?? tags,
+                expiryDate: .some(expiry),
+                paymentStatus: status,
+                paidAt: status == nil ? nil : .some(paid)
             )
             SpotlightIndexer.index(updated, fileURL: library.fileURL(for: updated))
             ExpiryReminderService.schedule(for: updated)
@@ -505,13 +536,30 @@ public final class LibraryStore: ObservableObject {
             let text = await Task.detached(priority: .utility) {
                 TextExtractionService.extractText(from: url)
             }.value
-            let updated = try library.updateMetadata(documentID: documentID, ocrText: text)
+            var updated = try library.updateMetadata(documentID: documentID, ocrText: text)
+            let fields = await DocumentUnderstanding.extractAsync(from: updated)
+            if shouldApplyUnderstanding(fields, to: updated) {
+                updated = try library.updateMetadata(
+                    documentID: documentID,
+                    title: fields.title,
+                    tags: updated.tags.isEmpty ? fields.tags : nil
+                )
+            }
             SpotlightIndexer.index(updated, fileURL: url)
             self.reload()
         } catch {
             NSLog("Secretary: OCR/index failed for \(documentID): \(error.localizedDescription)")
             self.errorMessage = error.localizedDescription
         }
+    }
+
+    /// Apply on-device understanding after OCR when the stored title is still a filename stub.
+    private func shouldApplyUnderstanding(_ fields: StructuredDocumentFields, to record: DocumentRecord) -> Bool {
+        DocumentTitleGenerator.looksGeneric(
+            record.title,
+            filename: record.filename,
+            originalFilename: record.originalFilename
+        ) || (fields.source == .foundationModels && record.title != fields.title)
     }
 }
 
