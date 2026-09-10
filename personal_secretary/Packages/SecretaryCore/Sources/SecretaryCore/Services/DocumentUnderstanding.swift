@@ -2,9 +2,6 @@ import Foundation
 #if canImport(NaturalLanguage)
 import NaturalLanguage
 #endif
-#if canImport(FoundationModels)
-import FoundationModels
-#endif
 
 /// Structured fields inferred from filename + OCR (and optionally Apple Foundation Models).
 public struct StructuredDocumentFields: Equatable, Sendable {
@@ -65,12 +62,12 @@ public struct StructuredDocumentFields: Equatable, Sendable {
 public enum DocumentUnderstanding {
     /// `true` when the SDK links Foundation Models *and* the OS is new enough
     /// (Apple Intelligence / Foundation Models: macOS 26 / iOS 26).
-    /// Uses a runtime major-version check so Xcode 15 (`#available` up through
-    /// macOS 15 / iOS 18) still compiles.
+    /// `#available(macOS 26, iOS 26)` lives only inside `canImport`, so Xcode 15
+    /// never parses those symbols.
     public static var foundationModelsAvailable: Bool {
         #if canImport(FoundationModels)
-        if #available(macOS 15.0, iOS 18.0, *) {
-            return ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26
+        if #available(macOS 26.0, iOS 26.0, *) {
+            return true
         }
         #endif
         return false
@@ -176,8 +173,10 @@ public enum DocumentUnderstanding {
         )
         guard foundationModelsAvailable else { return fallback }
         #if canImport(FoundationModels)
-        if let enriched = await FoundationModelUnderstanding.extract(from: document, fallback: fallback) {
-            return enriched
+        if #available(macOS 26.0, iOS 26.0, *) {
+            if let enriched = await FoundationModelUnderstanding.extract(from: document, fallback: fallback) {
+                return enriched
+            }
         }
         #endif
         return fallback

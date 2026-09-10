@@ -4,6 +4,8 @@ import FoundationModels
 
 /// On-device Apple Intelligence extraction. Compiled only when the SDK ships `FoundationModels`.
 /// Personal Team / Xcode 15 never see this type (`canImport` is false).
+/// Types in this file are macOS 26 / iOS 26+; the app deploy target stays 14 / 17.
+@available(macOS 26.0, iOS 26.0, *)
 enum FoundationModelUnderstanding {
     static func extract(
         from document: DocumentRecord,
@@ -39,9 +41,13 @@ enum FoundationModelUnderstanding {
 
     /// `LanguageModelSession.respond(to:)` is the on-device Foundation Models entry point.
     private static func respondOnDevice(prompt: String) async throws -> String {
-        let session = LanguageModelSession()
-        let response = try await session.respond(to: prompt)
-        return response.content
+        if #available(macOS 26.0, iOS 26.0, *) {
+            let session = LanguageModelSession()
+            let response = try await session.respond(to: prompt)
+            return response.content
+        }
+        enum Unavailable: Error { case osTooOld }
+        throw Unavailable.osTooOld
     }
 
     private struct Payload: Decodable {
