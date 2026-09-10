@@ -125,6 +125,9 @@ struct RootView: View {
 struct SidebarView: View {
     @EnvironmentObject private var store: LibraryStore
     @Binding var selection: SidebarDestination?
+    #if os(macOS)
+    @Environment(\.openSettings) private var openSettings
+    #endif
 
     var body: some View {
         List(selection: $selection) {
@@ -184,13 +187,7 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(SecretaryTheme.textSecondary)
-                Button {
-                    Task { await store.checkMailbox() }
-                } label: {
-                    Label("Check mailbox", systemImage: "envelope")
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(SecretaryTheme.textSecondary)
+                mailboxIntakeRow
             } header: {
                 Text("Intake")
                     .sectionHeaderStyle()
@@ -248,6 +245,45 @@ struct SidebarView: View {
             }
         }
         .tag(SidebarDestination.expiring)
+    }
+
+    @ViewBuilder
+    private var mailboxIntakeRow: some View {
+        if store.mailboxConfigured {
+            Button {
+                Task { await store.checkMailbox() }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Check mailbox", systemImage: "envelope")
+                    if let email = store.mailboxEmail, !email.isEmpty {
+                        Text(email)
+                            .font(SecretaryTheme.Typography.metadata)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(SecretaryTheme.textSecondary)
+        } else {
+            #if os(iOS)
+            NavigationLink {
+                SettingsView(initialTab: .mailbox)
+            } label: {
+                Label("Set up mailbox…", systemImage: "envelope.badge")
+            }
+            .foregroundStyle(SecretaryTheme.textSecondary)
+            #else
+            Button {
+                store.openMailboxSettings()
+                openSettings()
+            } label: {
+                Label("Set up mailbox…", systemImage: "envelope.badge")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(SecretaryTheme.textSecondary)
+            #endif
+        }
     }
 
     private func navRow(_ title: String, systemImage: String, destination: SidebarDestination) -> some View {

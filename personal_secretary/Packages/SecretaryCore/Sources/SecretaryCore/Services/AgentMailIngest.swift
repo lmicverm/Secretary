@@ -183,11 +183,27 @@ public enum MailboxSettings {
         get { Keychain.get(account: apiKeyAccount) }
         set {
             if let newValue, !newValue.isEmpty {
-                Keychain.set(newValue, account: apiKeyAccount)
+                try? storeAPIKey(newValue)
             } else {
-                Keychain.delete(account: apiKeyAccount)
+                clearAPIKey()
             }
         }
+    }
+
+    /// Writes the key to the Keychain and reads it back. Throws if either step fails.
+    public static func storeAPIKey(_ value: String) throws {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw KeychainError.emptyValue
+        }
+        try Keychain.set(trimmed, account: apiKeyAccount)
+        guard apiKey == trimmed else {
+            throw KeychainError.roundTripFailed
+        }
+    }
+
+    public static func clearAPIKey() {
+        Keychain.delete(account: apiKeyAccount)
     }
 
     public static var inboxId: String? {
@@ -205,10 +221,28 @@ public enum MailboxSettings {
     }
 }
 
+public enum KeychainError: Error, LocalizedError, Equatable {
+    case emptyValue
+    case status(OSStatus)
+    case roundTripFailed
+
+    public var errorDescription: String? {
+        switch self {
+        case .emptyValue:
+            return "API key is empty."
+        case .status(let code):
+            let detail = SecCopyErrorMessageString(code, nil) as String? ?? "unknown"
+            return "Keychain could not save the API key (status \(code): \(detail))."
+        case .roundTripFailed:
+            return "Keychain save did not round-trip — the key could not be read back."
+        }
+    }
+}
+
 enum Keychain {
     private static let service = "be.vermeir.secretary"
 
-    static func set(_ value: String, account: String) {
+    static func set(_ value: String, account: String) throws {
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -216,9 +250,20 @@ enum Keychain {
             kSecAttrAccount as String: account
         ]
         SecItemDelete(query as CFDictionary)
+
         var add = query
         add[kSecValueData as String] = data
-        SecItemAdd(add as CFDictionary, nil)
+        var status = SecItemAdd(add as CFDictionary, nil)
+
+        if status != errSecSuccess {
+            SecItemDelete(query as CFDictionary)
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(add as CFDictionary, nil)
+        }
+
+        guard status == errSecSuccess else {
+            throw KeychainError.status(status)
+        }
     }
 
     static func get(account: String) -> String? {

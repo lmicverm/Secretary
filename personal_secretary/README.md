@@ -69,6 +69,10 @@ Filenames: `YYYY-MM-DD__type__short-title.ext`
 | Document scanner | — | VisionKit |
 | AgentMail ingest (email attachments) | yes | yes |
 | Classify (move into tree) | yes | yes |
+| Find in open PDF (⌘F) | yes | preview find bar |
+| Resizable detail split | yes (persisted) | stacked |
+| Category list grouped by year / type | yes | yes |
+| Invoice paid / unpaid | yes | yes |
 | Search (name, notes, OCR, FTS) | yes | yes |
 | Reveal in Finder / Open | yes | Share |
 | Favorites + iCloud download | yes | yes |
@@ -84,3 +88,16 @@ Filenames: `YYYY-MM-DD__type__short-title.ext`
 - [`Apps/ShareExtension`](Apps/ShareExtension) — “Save to Secretary”
 
 Files on disk are the source of truth. Use **Rebuild Index** if the database ever drifts.
+
+## Document understanding
+
+On-device only. **No cloud LLM** unless you later opt in.
+
+| Path | Enabled when | What runs |
+|---|---|---|
+| **Foundation Models** (Apple Intelligence, preferred) | **macOS 26+ / iOS 26+** *and* the app is built with an SDK that includes the `FoundationModels` framework (Xcode that ships Apple Intelligence). Apple Intelligence must be available on the device. | `LanguageModelSession` on-device after OCR (`extractAsync`). Junk titles are still filtered. If the model is missing or throws, we fall back. |
+| **Heuristic** (always compiled) | **macOS 14 / iOS 17+** — current deployment, including Personal Team Debug and any machine without Apple Intelligence | Filename + OCR + NaturalLanguage + Belgian invoice/tax patterns. This is what **Move** uses so classify never blocks on a model. |
+
+Weak linking: `FoundationModelUnderstanding.swift` is wrapped in `#if canImport(FoundationModels)`. Every `FoundationModels` symbol is also behind `#available(macOS 26.0, iOS 26.0, *)`. Xcode 15 never compiles those blocks (`canImport` is false). Deploy target stays macOS 14 / iOS 17.
+
+Classify always writes `YYYY-MM-DD__type__{slug(cleaned title)}.ext` from the cleaned title — never raw OCR tokens (`PfO6D4aa`, `import`, …).

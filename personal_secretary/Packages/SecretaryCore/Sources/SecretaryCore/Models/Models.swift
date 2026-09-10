@@ -55,6 +55,36 @@ public enum DefaultTaxonomy {
     }
 }
 
+/// Invoice / bill payment tracking. `notApplicable` is the default for non-invoices.
+public enum PaymentStatus: String, Codable, CaseIterable, Sendable, Identifiable {
+    case unpaid
+    case paid
+    case notApplicable
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .unpaid: return "Unpaid"
+        case .paid: return "Paid"
+        case .notApplicable: return "Not applicable"
+        }
+    }
+
+    /// Keep `paid` / `unpaid` tags in sync with the status field.
+    public func syncedTags(_ tags: [String]) -> [String] {
+        let filtered = tags.filter { tag in
+            let lower = tag.lowercased()
+            return lower != "paid" && lower != "unpaid"
+        }
+        switch self {
+        case .paid: return filtered + ["paid"]
+        case .unpaid: return filtered + ["unpaid"]
+        case .notApplicable: return filtered
+        }
+    }
+}
+
 /// Indexed document metadata. Files on disk are the source of truth.
 public struct DocumentRecord: Identifiable, Hashable, Codable, Sendable {
     public var id: String
@@ -77,6 +107,8 @@ public struct DocumentRecord: Identifiable, Hashable, Codable, Sendable {
     public var createdAt: Date
     public var modifiedAt: Date
     public var indexedAt: Date
+    public var paymentStatus: PaymentStatus
+    public var paidAt: Date?
 
     public init(
         id: String = UUID().uuidString,
@@ -97,7 +129,9 @@ public struct DocumentRecord: Identifiable, Hashable, Codable, Sendable {
         fileSize: Int64 = 0,
         createdAt: Date = Date(),
         modifiedAt: Date = Date(),
-        indexedAt: Date = Date()
+        indexedAt: Date = Date(),
+        paymentStatus: PaymentStatus = .notApplicable,
+        paidAt: Date? = nil
     ) {
         self.id = id
         self.relativePath = relativePath
@@ -119,6 +153,8 @@ public struct DocumentRecord: Identifiable, Hashable, Codable, Sendable {
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
         self.indexedAt = indexedAt
+        self.paymentStatus = paymentStatus
+        self.paidAt = paidAt
     }
 
     public var isInbox: Bool {
@@ -154,6 +190,7 @@ public struct ClassificationTarget: Hashable, Sendable {
     public var notes: String
     public var tags: [String]
     public var expiryDate: Date?
+    public var documentDate: Date?
 
     public init(
         space: DocumentSpace,
@@ -163,7 +200,8 @@ public struct ClassificationTarget: Hashable, Sendable {
         shortTitle: String,
         notes: String = "",
         tags: [String] = [],
-        expiryDate: Date? = nil
+        expiryDate: Date? = nil,
+        documentDate: Date? = nil
     ) {
         self.space = space
         self.category = category
@@ -173,6 +211,7 @@ public struct ClassificationTarget: Hashable, Sendable {
         self.notes = notes
         self.tags = tags
         self.expiryDate = expiryDate
+        self.documentDate = documentDate
     }
 }
 

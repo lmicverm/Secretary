@@ -112,6 +112,26 @@ public struct FolderSchema: Sendable {
         return "\(day)__\(type)__\(title).\(ext.lowercased())"
     }
 
+    /// `type` segment from `YYYY-MM-DD__type__title.ext`.
+    public static func documentType(fromFilename filename: String) -> String? {
+        let parts = (filename as NSString).deletingPathExtension.split(separator: "__")
+        guard parts.count >= 2 else { return nil }
+        let type = String(parts[1]).lowercased()
+        let generic: Set<String> = ["import", "scan", "drop", "photo", "file", "untitled"]
+        if generic.contains(type) { return nil }
+        return type
+    }
+
+    /// Leading `YYYY-MM-DD` from a Secretary filename.
+    public static func documentDate(fromFilename filename: String) -> Date? {
+        let prefix = String(filename.prefix(10))
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: prefix)
+    }
+
     public static func sanitize(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let replaced = trimmed

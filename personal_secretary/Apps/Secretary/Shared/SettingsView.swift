@@ -2,13 +2,24 @@ import SecretaryCore
 import SwiftUI
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
+
+enum SettingsTab: String, Hashable {
+    case library
+    case intake
+    case mailbox
+}
 
 struct SettingsView: View {
     @EnvironmentObject private var store: LibraryStore
+    var initialTab: SettingsTab = .library
+    @State private var selectedTab: SettingsTab
     @State private var newCategorySpace: DocumentSpace = .personal
     @State private var newCategoryName = ""
     @State private var apiKey = MailboxSettings.apiKey ?? ""
+    @State private var showAPIKey = false
     @State private var mailboxUsername = "secretary"
     @State private var availableInboxes: [AgentMailClient.InboxInfo] = []
     @State private var selectedInboxId: String = MailboxSettings.inboxId ?? ""
@@ -16,20 +27,40 @@ struct SettingsView: View {
     @State private var mailboxError: String?
     @State private var mailboxSuccess: String?
     @State private var isFetchingMail = false
+    @State private var keyIsStored = MailboxSettings.apiKey != nil
+
+    init(initialTab: SettingsTab = .library) {
+        self.initialTab = initialTab
+        _selectedTab = State(initialValue: initialTab)
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             libraryTab
                 .tabItem { Label("Library", systemImage: "folder") }
+                .tag(SettingsTab.library)
             intakeTab
                 .tabItem { Label("Intake", systemImage: "tray.and.arrow.down") }
+                .tag(SettingsTab.intake)
             mailboxTab
-                .tabItem { Label("Mailbox", systemImage: "envelope") }
+                .tabItem { Label("Mailbox / AgentMail", systemImage: "envelope") }
+                .tag(SettingsTab.mailbox)
         }
         #if os(macOS)
-        .frame(width: 520, height: 480)
+        .frame(minWidth: 540, minHeight: 640)
         #endif
         .tint(SecretaryTheme.accent)
+        .onAppear { applyPendingTab() }
+        .onChange(of: store.pendingSettingsTab) { _, _ in
+            applyPendingTab()
+        }
+    }
+
+    private func applyPendingTab() {
+        if store.pendingSettingsTab == "mailbox" {
+            selectedTab = .mailbox
+            store.pendingSettingsTab = nil
+        }
     }
 
     private var libraryTab: some View {
@@ -178,54 +209,78 @@ struct SettingsView: View {
                 Text("Send documents to a dedicated AgentMail address. Attachments (PDFs, images, Office docs) import into Inbox.")
                     .font(SecretaryTheme.Typography.caption)
                     .foregroundStyle(SecretaryTheme.textSecondary)
+                Text("Mac: Secretary → Settings… (⌘,) → Mailbox / AgentMail → paste API key. iOS: Sidebar → Settings → Mailbox / AgentMail.")
+                    .font(SecretaryTheme.Typography.metadata)
+                    .foregroundStyle(SecretaryTheme.textTertiary)
             }
             
             Section {
-                SecureField("AgentMail API key", text: $apiKey)
-                    .font(SecretaryTheme.Typography.bodySecondary)
-                    .textContentType(.password)
-                    .autocorrectionDisabled()
+                Group {
+                    if showAPIKey {
+                        TextField("AgentMail API key", text: $apiKey)
+                    } else {
+                        SecureField("AgentMail API key", text: $apiKey)
+                    }
+                }
+                .font(SecretaryTheme.Typography.bodySecondary)
+                .textContentType(.password)
+                .autocorrectionDisabled()
                 #if os(iOS)
-                    .textInputAutocapitalization(.never)
+                .textInputAutocapitalization(.never)
                 #endif
-                
+
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Toggle("Show key", isOn: $showAPIKey)
+                        .font(SecretaryTheme.Typography.caption)
+                        .toggleStyle(.switch)
+                    Button("Paste") {
+                        pasteAPIKey()
+                    }
+                    .buttonStyle(.bordered)
+                    .font(SecretaryTheme.Typography.caption)
+                }
+
+                HStack(spacing: SecretaryTheme.spacingSM) {
+                    Button {
+                        saveAPIKey()
+                    } label: {
+                        Label("Save key", systemImage: "checkmark")
+                            .font(SecretaryTheme.Typography.captionMedium)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SecretaryTheme.accent)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if keyIsStored {
+                        Button(role: .destructive) {
+                            clearAPIKey()
+                        } label: {
+                            Label("Clear", systemImage: "xmark")
+                                .font(SecretaryTheme.Typography.captionMedium)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+
                 if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     HStack(spacing: SecretaryTheme.spacingSM) {
                         Image(systemName: "key")
                             .foregroundStyle(SecretaryTheme.accent)
-                        Text("Get an API key at agentmail.to")
+                        Text("Get an API key at agentmail.to, then Paste and Save.")
                     }
                     .font(SecretaryTheme.Typography.caption)
                     .foregroundStyle(SecretaryTheme.textTertiary)
-                } else {
-                    HStack(spacing: SecretaryTheme.spacingSM) {
-                        Button {
-                            saveAPIKey()
-                        } label: {
-                            Label("Save key", systemImage: "checkmark")
-                                .font(SecretaryTheme.Typography.captionMedium)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(SecretaryTheme.accent)
-                        .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        
-                        if MailboxSettings.apiKey != nil {
-                            Button(role: .destructive) {
-                                clearAPIKey()
-                            } label: {
-                                Label("Clear", systemImage: "xmark")
-                                    .font(SecretaryTheme.Typography.captionMedium)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
+                } else if keyIsStored {
+                    Text("Key is stored in the Keychain.")
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.success)
                 }
             } header: {
                 Text("API Key")
             }
             
             Section {
-                if MailboxSettings.apiKey == nil {
+                if !keyIsStored {
                     HStack(spacing: SecretaryTheme.spacingSM) {
                         Image(systemName: "info.circle")
                             .foregroundStyle(SecretaryTheme.textTertiary)
@@ -410,7 +465,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .padding(SecretaryTheme.spacingSM)
         .onAppear {
-            if MailboxSettings.apiKey != nil && availableInboxes.isEmpty {
+            if keyIsStored && availableInboxes.isEmpty {
                 Task { await loadInboxes() }
             }
         }
@@ -430,24 +485,48 @@ struct SettingsView: View {
         .font(SecretaryTheme.Typography.caption)
     }
     
+    private func pasteAPIKey() {
+        #if os(macOS)
+        let pasted = NSPasteboard.general.string(forType: .string)
+        #else
+        let pasted = UIPasteboard.general.string
+        #endif
+        guard let pasted else { return }
+        apiKey = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        showAPIKey = true
+    }
+
     private func saveAPIKey() {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        MailboxSettings.apiKey = trimmed
-        mailboxError = nil
-        mailboxSuccess = "API key saved securely"
-        Task { await loadInboxes() }
+        do {
+            try MailboxSettings.storeAPIKey(trimmed)
+            guard MailboxSettings.apiKey == trimmed else {
+                throw KeychainError.roundTripFailed
+            }
+            keyIsStored = true
+            mailboxError = nil
+            mailboxSuccess = "API key saved and verified in Keychain"
+            store.refreshMailboxStatus()
+            Task { await loadInboxes() }
+        } catch {
+            keyIsStored = MailboxSettings.apiKey != nil
+            mailboxSuccess = nil
+            mailboxError = error.localizedDescription
+        }
     }
     
     private func clearAPIKey() {
-        MailboxSettings.apiKey = nil
+        MailboxSettings.clearAPIKey()
         MailboxSettings.inboxId = nil
         MailboxSettings.inboxEmail = nil
         apiKey = ""
+        keyIsStored = false
         availableInboxes = []
         selectedInboxId = ""
         mailboxError = nil
         mailboxSuccess = "API key cleared"
+        store.refreshMailboxStatus()
     }
     
     private func loadInboxes() async {
@@ -480,6 +559,7 @@ struct SettingsView: View {
             MailboxSettings.inboxId = inbox.inboxId
             MailboxSettings.inboxEmail = inbox.email
             mailboxSuccess = "Inbox selected: \(inbox.email ?? inbox.inboxId)"
+            store.refreshMailboxStatus()
         }
     }
     
@@ -498,6 +578,7 @@ struct SettingsView: View {
             MailboxSettings.inboxId = inbox.inboxId
             MailboxSettings.inboxEmail = inbox.email
             mailboxSuccess = "Created inbox: \(inbox.email ?? inbox.inboxId)"
+            store.refreshMailboxStatus()
             await loadInboxes()
             selectedInboxId = inbox.inboxId
         } catch {

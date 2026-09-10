@@ -16,7 +16,9 @@ struct DocumentDetailView: View {
     @State private var tagsText: String = ""
     @State private var expiryEnabled = false
     @State private var expiryDate = Date()
-    @State private var showClassify = false
+    @State private var paymentStatus: PaymentStatus = .notApplicable
+    @State private var paidAt = Date()
+    @State private var showExtractedText = false
     @State private var duplicates: [DocumentRecord] = []
     @State private var suggestions: [ClassificationSuggestion] = []
     @State private var showReclassifyPanel = false
@@ -32,6 +34,10 @@ struct DocumentDetailView: View {
     @State private var confirmRemove = false
     /// Last tags written by auto-fill so OCR upgrades can replace them without clobbering edits.
     @State private var autoFilledTags: [String] = []
+    @StateObject private var findSession = PDFFindSession()
+    #if os(macOS)
+    @AppStorage(DetailSplitLayout.metaWidthDefaultsKey) private var storedMetaWidth = DetailSplitLayout.defaultMetaWidth
+    #endif
 
     private var liveDocument: DocumentRecord {
         store.documents.first(where: { $0.id == document.id }) ?? document
@@ -115,29 +121,78 @@ struct DocumentDetailView: View {
         }
     }
 
+    private var extractedTextSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: SecretaryTheme.spacingLG) {
+                    if liveDocument.ocrText.isEmpty {
+                        Text("No extracted text yet.")
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                    } else {
+                        Text(liveDocument.ocrText)
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .textSelection(.enabled)
+                    }
+                    if !liveDocument.notes.isEmpty {
+                        Text("Notes")
+                            .font(SecretaryTheme.Typography.captionBold)
+                            .foregroundStyle(SecretaryTheme.textTertiary)
+                        Text(liveDocument.notes)
+                            .font(SecretaryTheme.Typography.bodySecondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(SecretaryTheme.spacingLG)
+            }
+            .navigationTitle("Extracted text")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showExtractedText = false }
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(width: 520, height: 480)
+        #endif
+    }
+
+    private var isPDFPreview: Bool {
+        store.fileURL(for: liveDocument)?.pathExtension.lowercased() == "pdf"
+    }
+
     #if os(macOS)
     /// Paperless-style: metadata/classify on the left, preview filling the remaining pane.
     private var macDetail: some View {
         GeometryReader { geo in
-            let split = geo.size.width >= SecretaryTheme.detailSplitMinWidth
-            if split {
+            let detailWidth = geo.size.width
+            if DetailSplitLayout.canSplit(detailWidth: Double(detailWidth)) {
+                let metaWidth = CGFloat(
+                    DetailSplitLayout.clampedMetaWidth(storedMetaWidth, detailWidth: Double(detailWidth))
+                )
                 HStack(alignment: .top, spacing: 0) {
                     ScrollView {
                         metaStack
                             .padding(.horizontal, SecretaryTheme.spacingLG)
                             .padding(.vertical, SecretaryTheme.spacingLG)
                     }
-                    .frame(width: SecretaryTheme.metaColumnWidth(for: geo.size.width))
+                    .frame(width: metaWidth)
                     .frame(maxHeight: .infinity)
 
-                    Rectangle()
-                        .fill(SecretaryTheme.stroke)
-                        .frame(width: 1)
-                        .padding(.vertical, SecretaryTheme.spacingMD)
+                    DetailSplitHandle(
+                        currentMetaWidth: metaWidth,
+                        detailWidth: detailWidth,
+                        storedMetaWidth: $storedMetaWidth
+                    )
 
                     previewPane
                         .padding(.trailing, SecretaryTheme.spacingLG)
                         .padding(.vertical, SecretaryTheme.spacingLG)
+                        .frame(minWidth: SecretaryTheme.detailPreviewMinWidth)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
@@ -188,7 +243,7 @@ struct DocumentDetailView: View {
     private var previewPane: some View {
         Group {
             if let url = store.fileURL(for: liveDocument) {
-                DocumentPreview(url: url)
+                DocumentPreview(url: url, findSession: findSession)
             } else {
                 EmptyStateView(icon: "doc", title: "Preview unavailable")
             }
@@ -391,6 +446,16 @@ struct DocumentDetailView: View {
                     }
                 }
 
+                if let summary = DocumentUnderstanding.extract(
+                    from: liveDocument,
+                    preferredTitle: draftTitle,
+                    preferredType: draftType
+                ).summaryLine {
+                    Text(summary)
+                        .font(SecretaryTheme.Typography.metadata)
+                        .foregroundStyle(SecretaryTheme.textTertiary)
+                }
+
                 HStack(spacing: SecretaryTheme.spacingSM) {
                     Button {
                         applyDraft()
@@ -403,11 +468,40 @@ struct DocumentDetailView: View {
                     .controlSize(.regular)
                     .disabled(draftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                    Button("More…") { showClassify = true }
-                        .buttonStyle(.bordered)
+                    extrasMenu
                 }
             }
         }
+    }
+
+    private var extrasMenu: some View {
+        Menu {
+            Button("Ignore this file", role: .destructive) {
+                store.removeFromLibrary(liveDocument)
+            }
+            Button("Show extracted text") {
+                showExtractedText = true
+            }
+            if let url = store.fileURL(for: liveDocument) {
+                #if os(macOS)
+                Button("Reveal in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+                Button("Copy path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.path, forType: .string)
+                }
+                #else
+                Button("Copy path") {
+                    UIPasteboard.general.string = url.path
+                }
+                #endif
+            }
+        } label: {
+            Text("More")
+        }
+        .buttonStyle(.bordered)
+        .help("Ignore, extracted text, Finder, copy path")
     }
 
     private func suggestionRow(_ suggestion: ClassificationSuggestion) -> some View {
@@ -466,7 +560,7 @@ struct DocumentDetailView: View {
     @ViewBuilder
     private var compactPreview: some View {
         if let url = store.fileURL(for: liveDocument) {
-            DocumentPreview(url: url)
+            DocumentPreview(url: url, findSession: findSession)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: SecretaryTheme.previewMinHeight, idealHeight: SecretaryTheme.previewIdealHeight, maxHeight: SecretaryTheme.previewMaxHeight)
                 .background(SecretaryTheme.panel)
@@ -522,6 +616,20 @@ struct DocumentDetailView: View {
                             .labelsHidden()
                     }
                 }
+
+                if showsPaymentControls {
+                    HStack(spacing: SecretaryTheme.spacingMD) {
+                        Toggle("Paid", isOn: Binding(
+                            get: { paymentStatus == .paid },
+                            set: { paymentStatus = $0 ? .paid : .unpaid }
+                        ))
+                        .font(SecretaryTheme.Typography.caption)
+                        if paymentStatus == .paid {
+                            DatePicker("", selection: $paidAt, displayedComponents: .date)
+                                .labelsHidden()
+                        }
+                    }
+                }
                 
                 Button {
                     store.saveMetadata(
@@ -529,7 +637,9 @@ struct DocumentDetailView: View {
                         title: title,
                         notes: notes,
                         tags: parsedTags(from: tagsText),
-                        expiry: expiryEnabled ? expiryDate : nil
+                        expiry: expiryEnabled ? expiryDate : nil,
+                        paymentStatus: showsPaymentControls ? paymentStatus : liveDocument.paymentStatus,
+                        paidAt: showsPaymentControls && paymentStatus == .paid ? paidAt : nil
                     )
                 } label: {
                     Text("Save")
@@ -676,8 +786,9 @@ struct DocumentDetailView: View {
     private func seedDraftFromDocument() {
         draftSpace = liveDocument.space ?? .personal
         draftCategory = liveDocument.category ?? draftCategories.first ?? "Tax"
-        draftTitle = ClassificationSuggester.suggestedTitle(for: liveDocument)
-        draftType = ClassificationSuggester.cleanedDocumentType("document")
+        let fields = DocumentUnderstanding.extract(from: liveDocument)
+        draftTitle = fields.title
+        draftType = fields.documentType
         if let year = FolderSchema.normalizedYear(TextFeaturesYear.detect(in: liveDocument) ?? liveDocument.year) {
             draftUseYear = true
             draftYear = year
@@ -687,14 +798,29 @@ struct DocumentDetailView: View {
         }
     }
 
+    private var showsPaymentControls: Bool {
+        paymentStatus == .paid || paymentStatus == .unpaid || DocumentUnderstanding.looksLikeInvoice(
+            text: [liveDocument.filename, liveDocument.title, liveDocument.ocrText, draftType, tagsText].joined(separator: "\n"),
+            documentType: draftType.isEmpty ? nil : draftType,
+            tags: parsedTags(from: tagsText) + liveDocument.tags,
+            category: liveDocument.category ?? draftCategory
+        )
+    }
+
     private func applyDraft() {
         let category = ClassificationSuggester.sanitizeCategoryName(draftCategory)
         draftCategory = category
         store.ensureCategory(space: draftSpace, name: category)
         let year = draftUseYear ? FolderSchema.normalizedYear(draftYear) : nil
         let tags = parsedTags(from: tagsText)
-        let cleanTitle = ClassificationSuggester.cleanedDisplayTitle(draftTitle, document: liveDocument)
-        let cleanType = ClassificationSuggester.cleanedDocumentType(draftType)
+        let fields = DocumentUnderstanding.extract(
+            from: liveDocument,
+            preferredTitle: draftTitle,
+            preferredType: draftType,
+            preferredTags: tags
+        )
+        let cleanTitle = fields.title
+        let cleanType = fields.documentType
         draftTitle = cleanTitle
         draftType = cleanType
         let target = ClassificationTarget(
@@ -705,7 +831,8 @@ struct DocumentDetailView: View {
             shortTitle: cleanTitle,
             notes: liveDocument.notes,
             tags: tags,
-            expiryDate: liveDocument.expiryDate
+            expiryDate: liveDocument.expiryDate ?? fields.dueDate,
+            documentDate: fields.documentDate
         )
         store.classify(document: liveDocument, as: target)
         showReclassifyPanel = false
@@ -744,6 +871,17 @@ struct DocumentDetailView: View {
             expiryDate = expiry
         } else {
             expiryEnabled = false
+        }
+        paymentStatus = liveDocument.paymentStatus
+        paidAt = liveDocument.paidAt ?? Date()
+        if paymentStatus == .notApplicable,
+           DocumentUnderstanding.looksLikeInvoice(
+            text: [liveDocument.filename, liveDocument.title, liveDocument.ocrText].joined(separator: "\n"),
+            documentType: FolderSchema.documentType(fromFilename: liveDocument.filename),
+            tags: liveDocument.tags,
+            category: liveDocument.category
+           ) {
+            paymentStatus = .unpaid
         }
     }
 
@@ -826,11 +964,44 @@ enum TextFeaturesYear {
 
 struct DocumentPreview: View {
     let url: URL
+    @ObservedObject var findSession: PDFFindSession
 
     var body: some View {
         let ext = url.pathExtension.lowercased()
+        ZStack(alignment: .top) {
+            previewContent(ext: ext)
+            HStack(spacing: 0) {
+                if findSession.isPresented {
+                    DocumentFindBar(session: findSession)
+                    Spacer(minLength: 0)
+                } else {
+                    Spacer()
+                    Button {
+                        findSession.begin(supportsFind: ext == "pdf")
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(SecretaryTheme.textSecondary)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Find in Document")
+                    #if os(macOS)
+                    .keyboardShortcut("f", modifiers: .command)
+                    #endif
+                    .accessibilityLabel("Find in document")
+                }
+            }
+            .padding(SecretaryTheme.spacingSM)
+            .zIndex(1)
+        }
+    }
+
+    @ViewBuilder
+    private func previewContent(ext: String) -> some View {
         if ext == "pdf" {
-            PDFKitRepresentedView(url: url)
+            PDFKitRepresentedView(url: url, findSession: findSession)
         } else if ["png", "jpg", "jpeg", "heic", "tif", "tiff"].contains(ext) {
             #if os(macOS)
             if let image = NSImage(contentsOf: url) {
@@ -863,151 +1034,93 @@ struct DocumentPreview: View {
 #if os(macOS)
 struct PDFKitRepresentedView: NSViewRepresentable {
     let url: URL
+    var findSession: PDFFindSession?
+
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
         view.document = PDFDocument(url: url)
+        findSession?.attach(view)
         return view
     }
+
     func updateNSView(_ nsView: PDFView, context: Context) {
         if nsView.document?.documentURL != url {
             nsView.document = PDFDocument(url: url)
+            findSession?.resetForNewDocument()
         }
+        findSession?.attach(nsView)
+    }
+}
+
+private struct DetailSplitHandle: View {
+    let currentMetaWidth: CGFloat
+    let detailWidth: CGFloat
+    @Binding var storedMetaWidth: Double
+    @State private var dragOrigin: CGFloat?
+    @State private var hovering = false
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .frame(width: CGFloat(DetailSplitLayout.dividerHitWidth))
+                .contentShape(Rectangle())
+            Rectangle()
+                .fill(hovering ? SecretaryTheme.accent.opacity(0.45) : SecretaryTheme.stroke)
+                .frame(width: hovering ? 2 : 1)
+                .padding(.vertical, SecretaryTheme.spacingMD)
+        }
+        .frame(maxHeight: .infinity)
+        .onHover { isHovering in
+            hovering = isHovering
+            if isHovering {
+                NSCursor.resizeLeftRight.set()
+            } else if dragOrigin == nil {
+                NSCursor.arrow.set()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    if dragOrigin == nil {
+                        dragOrigin = currentMetaWidth
+                    }
+                    let proposed = (dragOrigin ?? currentMetaWidth) + value.translation.width
+                    storedMetaWidth = DetailSplitLayout.clampedMetaWidth(
+                        Double(proposed),
+                        detailWidth: Double(detailWidth)
+                    )
+                }
+                .onEnded { _ in
+                    dragOrigin = nil
+                    if !hovering {
+                        NSCursor.arrow.set()
+                    }
+                }
+        )
+        .help("Drag to resize")
+        .accessibilityLabel("Resize details and preview")
     }
 }
 #else
 struct PDFKitRepresentedView: UIViewRepresentable {
     let url: URL
+    var findSession: PDFFindSession?
+
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.autoScales = true
         view.document = PDFDocument(url: url)
+        findSession?.attach(view)
         return view
     }
+
     func updateUIView(_ uiView: PDFView, context: Context) {
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
+            findSession?.resetForNewDocument()
         }
+        findSession?.attach(uiView)
     }
 }
 #endif
-
-struct ClassifySheet: View {
-    @EnvironmentObject private var store: LibraryStore
-    @Environment(\.dismiss) private var dismiss
-    let document: DocumentRecord
-
-    @State private var suggestions: [ClassificationSuggestion] = []
-    @State private var space: DocumentSpace = .personal
-    @State private var category: String = DefaultTaxonomy.personalCategories[0]
-    @State private var useYear = false
-    @State private var year = Calendar.current.component(.year, from: Date())
-    @State private var documentType = "document"
-    @State private var shortTitle = ""
-
-    private var categories: [String] {
-        var names = Set(store.categories(for: space))
-        for suggestion in suggestions where suggestion.space == space {
-            names.insert(suggestion.category)
-        }
-        if !category.isEmpty { names.insert(category) }
-        return names.sorted()
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                if !suggestions.isEmpty {
-                    Section("Suggestions") {
-                        ForEach(suggestions) { suggestion in
-                            Button {
-                                space = suggestion.space
-                                category = suggestion.category
-                                documentType = suggestion.documentType
-                                shortTitle = suggestion.shortTitle
-                                if let y = FolderSchema.normalizedYear(suggestion.year) {
-                                    useYear = true
-                                    year = y
-                                }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text(suggestion.destinationLabel)
-                                        if suggestion.isNewCategory {
-                                            Text("NEW").font(.caption2.weight(.bold)).foregroundStyle(.orange)
-                                        }
-                                    }
-                                    Text(suggestion.reason).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                }
-                Section("Destination") {
-                    Picker("Space", selection: $space) {
-                        ForEach(DocumentSpace.allCases) { Text($0.displayName).tag($0) }
-                    }
-                    Picker("Category", selection: $category) {
-                        ForEach(categories, id: \.self) { Text($0).tag($0) }
-                    }
-                    TextField("Or new category", text: $category)
-                    Toggle("Year folder", isOn: $useYear)
-                    if useYear {
-                        Stepper(value: $year, in: 1990...2100) {
-                            Text(String(format: "%04d", year)).monospacedDigit()
-                        }
-                    }
-                    TextField("Type", text: $documentType)
-                    TextField("Title", text: $shortTitle)
-                }
-            }
-            .navigationTitle("Classify")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Move") {
-                        let cleaned = ClassificationSuggester.sanitizeCategoryName(category)
-                        let title = ClassificationSuggester.cleanedDisplayTitle(
-                            shortTitle.isEmpty ? document.displayTitle : shortTitle,
-                            document: document
-                        )
-                        store.ensureCategory(space: space, name: cleaned)
-                        store.classify(
-                            document: document,
-                            as: ClassificationTarget(
-                                space: space,
-                                category: cleaned,
-                                year: useYear ? FolderSchema.normalizedYear(year) : nil,
-                                documentType: ClassificationSuggester.cleanedDocumentType(documentType),
-                                shortTitle: title,
-                                notes: document.notes,
-                                tags: document.tags
-                            )
-                        )
-                        dismiss()
-                    }
-                }
-            }
-            .onAppear {
-                shortTitle = ClassificationSuggester.suggestedTitle(for: document)
-                suggestions = store.suggestions(for: document)
-                if let top = suggestions.first {
-                    space = top.space
-                    category = top.category
-                    documentType = top.documentType
-                    shortTitle = top.shortTitle
-                    if let y = FolderSchema.normalizedYear(top.year) {
-                        useYear = true
-                        year = y
-                    }
-                } else if let y = DocumentDateParser.year(in: document) {
-                    useYear = true
-                    year = y
-                }
-            }
-        }
-        #if os(macOS)
-        .frame(width: 460, height: 520)
-        #endif
-    }
-}
