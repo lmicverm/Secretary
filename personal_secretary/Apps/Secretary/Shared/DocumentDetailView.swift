@@ -81,43 +81,30 @@ struct DocumentDetailView: View {
             iosDetail
             #endif
         }
-        .padding(.leading, SecretaryTheme.pagePadding)
-        .padding(.top, SecretaryTheme.spacingXL)
-        .padding(.bottom, SecretaryTheme.spacingMD)
-    }
-
-    private func macStackedDetail(metrics: DetailLayoutMetrics) -> some View {
-        ScrollView {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                detailStack(
-                    previewMinHeight: metrics.previewMinHeight,
-                    previewMaxHeight: metrics.previewMaxHeight
-                )
-                .frame(maxWidth: metrics.contentWidth, alignment: .leading)
-                .padding(.horizontal, SecretaryTheme.pagePadding)
-                .padding(.vertical, SecretaryTheme.spacingXL)
-                Spacer(minLength: 0)
+        .navigationTitle(liveDocument.displayTitle)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .tint(SecretaryTheme.accent)
+        .onAppear { refreshAll() }
+        .onChange(of: document.id) { _, _ in
+            showReclassifyPanel = false
+            selectedSuggestionID = nil
+            refreshAll()
+        }
+        .onChange(of: liveDocument.ocrText) { _, _ in
+            reloadSuggestions()
+            if isClassifying, selectedSuggestionID == nil {
+                seedDraftFromDocument()
             }
             applySuggestedTagsIfNeeded()
         }
-    }
-    #endif
-
-    private func detailStack(previewMinHeight: CGFloat, previewMaxHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: SecretaryTheme.sectionSpacing) {
-            header
-            if isClassifying {
-                classifyPanel
-            } else {
-                reclassifyPrompt
-            }
-            previewPane(minHeight: previewMinHeight, maxHeight: previewMaxHeight)
-            metadataForm
-            if !duplicates.isEmpty {
-                duplicateBanner
-            }
-            actions
+        .sheet(isPresented: $showClassify) {
+            ClassifySheet(document: liveDocument)
+                .environmentObject(store)
+                #if os(macOS)
+                .frame(width: 480, height: 560)
+                #endif
         }
     }
 

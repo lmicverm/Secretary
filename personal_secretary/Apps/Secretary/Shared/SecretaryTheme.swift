@@ -51,11 +51,6 @@ enum SecretaryTheme {
     static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.macSidebarMax
     static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
     static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
-    #else
-    static let listWidth: CGFloat = 320
-    /// Readable form width on iOS stacked detail.
-    static let detailContentMax: CGFloat = 680
-    #if os(macOS)
     /// When the detail pane is at least this wide, metadata sits left and preview fills the rest.
     static let detailSplitMinWidth = CGFloat(DetailSplitLayout.minimumSplitWidth)
     static let detailMetaMinWidth = CGFloat(DetailSplitLayout.metaMinWidth)
@@ -64,7 +59,17 @@ enum SecretaryTheme {
     static let previewIdealHeight: CGFloat = 520
     static let previewMaxHeight: CGFloat = 920
     static let previewHeightRatio: CGFloat = 0.55
+
+    #if os(macOS)
+    static func previewHeight(forViewport viewportHeight: CGFloat) -> CGFloat {
+        let proposed = viewportHeight * previewHeightRatio
+        return min(previewMaxHeight, max(previewMinHeight, proposed))
+    }
     #else
+    static let listWidth: CGFloat = 320
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.iosSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.iosListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.iosContentMax
     static let previewMinHeight: CGFloat = 220
     static let previewIdealHeight: CGFloat = 260
     static let previewMaxHeight: CGFloat = 320
@@ -73,13 +78,6 @@ enum SecretaryTheme {
     static let windowMinHeight: CGFloat = 640
     static let windowDefaultWidth: CGFloat = 1440
     static let windowDefaultHeight: CGFloat = 860
-
-    #if os(macOS)
-    static func previewHeight(forViewport viewportHeight: CGFloat) -> CGFloat {
-        let proposed = viewportHeight * previewHeightRatio
-        return min(previewMaxHeight, max(previewMinHeight, proposed))
-    }
-    #endif
 }
 
 // MARK: - Typography
