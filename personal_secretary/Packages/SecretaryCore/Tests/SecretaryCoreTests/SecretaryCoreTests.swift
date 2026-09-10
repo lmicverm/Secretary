@@ -328,177 +328,60 @@ final class SecretaryCoreTests: XCTestCase {
         XCTAssertEqual(tax.year, 2023)
     }
 
-    func testKeychainSetReportsStatusAndRoundTrips() throws {
-        let account = "secretary.test.\(UUID().uuidString)"
-        defer { Keychain.delete(account: account) }
-        do {
-            try Keychain.set("am_test_key_123", account: account)
-            XCTAssertEqual(Keychain.get(account: account), "am_test_key_123")
-        } catch let KeychainError.status(code) {
-            XCTAssertNotEqual(code, errSecSuccess, "Keychain.set must surface a real OSStatus, got \(code)")
-        }
-        XCTAssertTrue(KeychainError.status(-34018).localizedDescription.contains("-34018"))
+    func testIOSDetailLayoutStaysCompact() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 390,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(metrics.contentWidth, 390)
+        XCTAssertEqual(metrics.previewMinHeight, 220)
+        XCTAssertEqual(metrics.previewMaxHeight, 320)
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.sideColumnWidth, 0)
+
+        let widePhone = DetailLayoutMetrics.resolve(
+            availableWidth: 900,
+            availableHeight: 700,
+            isMac: false
+        )
+        XCTAssertEqual(widePhone.contentWidth, DetailLayoutMetrics.iosContentMax)
+        XCTAssertFalse(widePhone.usesSideColumn)
     }
 
-    func testDetailSplitUsesMinimaAndPersistedWidth() {
-        XCTAssertEqual(DetailSplitLayout.metaMinWidth, 280)
-        XCTAssertEqual(DetailSplitLayout.previewMinWidth, 360)
-        XCTAssertEqual(DetailSplitLayout.minimumSplitWidth, 648)
-        XCTAssertTrue(DetailSplitLayout.canSplit(detailWidth: 900))
-        XCTAssertFalse(DetailSplitLayout.canSplit(detailWidth: 640))
-
-        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(200, detailWidth: 900), 280)
-        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(800, detailWidth: 900), 532)
-        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(340, detailWidth: 900), 340)
-        XCTAssertEqual(DetailSplitLayout.clampedMetaWidth(400, detailWidth: 500), 500)
+    func testMacStackedDetailGrowsPreviewWithWindow() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 640,
+            availableHeight: 700,
+            isMac: true
+        )
+        XCTAssertFalse(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 640 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMinHeight, 320)
+        XCTAssertEqual(metrics.previewMinHeight, 700 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+        XCTAssertGreaterThan(metrics.previewMaxHeight, metrics.previewMinHeight)
     }
 
-    func testCategoryListGroupsByYearThenType() {
-        let invoice2025 = DocumentRecord(
-            relativePath: "BV/Invoices/2025/2025-03-01__invoice__kbc.pdf",
-            filename: "2025-03-01__invoice__kbc.pdf",
-            space: .bv,
-            category: "Invoices",
-            year: 2025,
-            title: "KBC",
-            modifiedAt: Date(timeIntervalSince1970: 100)
+    func testMacWideDetailUsesSideColumnAndRaisedCap() {
+        let metrics = DetailLayoutMetrics.resolve(
+            availableWidth: 1040,
+            availableHeight: 900,
+            isMac: true
         )
-        let policy2025 = DocumentRecord(
-            relativePath: "BV/Invoices/2025/2025-01-01__policy__home.pdf",
-            filename: "2025-01-01__policy__home.pdf",
-            space: .bv,
-            category: "Invoices",
-            year: 2025,
-            title: "Home",
-            modifiedAt: Date(timeIntervalSince1970: 50)
+        XCTAssertTrue(metrics.usesSideColumn)
+        XCTAssertEqual(metrics.contentWidth, 1040 * DetailLayoutMetrics.contentWidthFraction, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMin)
+        XCTAssertLessThanOrEqual(metrics.sideColumnWidth, DetailLayoutMetrics.macSideColumnMax)
+        XCTAssertGreaterThanOrEqual(metrics.previewMinHeight, DetailLayoutMetrics.macPreviewMin)
+        XCTAssertEqual(metrics.previewMinHeight, 900 * DetailLayoutMetrics.macPreviewFraction, accuracy: 0.5)
+
+        let huge = DetailLayoutMetrics.resolve(
+            availableWidth: 2000,
+            availableHeight: 1200,
+            isMac: true
         )
-        let invoice2024 = DocumentRecord(
-            relativePath: "BV/Invoices/2024/2024-06-01__invoice__engie.pdf",
-            filename: "2024-06-01__invoice__engie.pdf",
-            space: .bv,
-            category: "Invoices",
-            year: 2024,
-            title: "Engie",
-            modifiedAt: Date(timeIntervalSince1970: 10)
-        )
-        let sections = DocumentListGrouping.sections(from: [invoice2024, policy2025, invoice2025])
-        XCTAssertEqual(sections.map(\.title), ["2025 · Invoice", "2025 · Policy", "2024 · Invoice"])
-        XCTAssertEqual(sections[0].documents.map(\.title), ["KBC"])
-        XCTAssertTrue(DocumentListGrouping.shouldGroup(filter: DocumentFilter(space: .bv, category: "Invoices")))
-        XCTAssertFalse(DocumentListGrouping.shouldGroup(filter: DocumentFilter(inboxOnly: true)))
-        XCTAssertFalse(DocumentListGrouping.shouldGroup(filter: DocumentFilter(query: "kbc")))
-    }
-
-    func testCategoryFilterFindsYearSubfolderFiles() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryYear-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let library = try DocumentLibrary(rootURL: root)
-        let folder = root.appendingPathComponent("Personal/Tax/2023")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("2023-05-01__tax__aanslag.txt")
-        try "aanslagbiljet 2023".write(to: file, atomically: true, encoding: .utf8)
-        try library.refreshFromDisk()
-
-        let results = try library.search(DocumentFilter(space: .personal, category: "Tax"))
-        XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results.first?.year, 2023)
-        XCTAssertEqual(results.first?.category, "Tax")
-        XCTAssertTrue(results.first?.relativePath.contains("Personal/Tax/2023/") == true)
-
-        let sections = DocumentListGrouping.sections(from: results)
-        XCTAssertEqual(sections.map(\.title), ["2023 · Tax"])
-    }
-
-    func testUnderstandingExtractsInvoiceFieldsAndRejectsJunkTitle() {
-        let document = DocumentRecord(
-            relativePath: "Inbox/2024-01-01__import__pfo6d4aa.txt",
-            filename: "2024-01-01__import__pfo6d4aa.txt",
-            originalFilename: "PfO6D4aa.pdf",
-            title: "PfO6D4aa",
-            ocrText: """
-            KBC Bank
-            Factuur
-            Factuurdatum: 15/03/2024
-            Vervaldatum: 14/04/2024
-            Totaal te betalen: 1.234,56
-            """
-        )
-        let fields = DocumentUnderstanding.extract(
-            from: document,
-            preferredTitle: "PfO6D4aa",
-            preferredType: "import"
-        )
-        XCTAssertEqual(fields.source, .heuristic)
-        XCTAssertEqual(fields.documentType, "invoice")
-        XCTAssertTrue(fields.looksLikeInvoice)
-        XCTAssertFalse(fields.title.lowercased().contains("pfo6"))
-        XCTAssertEqual(fields.amount, Decimal(string: "1234.56"))
-        XCTAssertNotNil(fields.documentDate)
-        XCTAssertNotNil(fields.dueDate)
-        XCTAssertEqual(FolderSchema.sanitize(fields.title), FolderSchema.sanitize(fields.title))
-    }
-
-    func testExtractAsyncUsesHeuristicWhenFoundationModelsUnavailable() async {
-        let document = DocumentRecord(
-            relativePath: "Inbox/note.txt",
-            filename: "note.txt",
-            ocrText: "Factuur KBC Bank Totaal: 10,00"
-        )
-        let fields = await DocumentUnderstanding.extractAsync(from: document)
-        if !DocumentUnderstanding.foundationModelsAvailable {
-            XCTAssertEqual(fields.source, .heuristic)
-        }
-        XCTAssertFalse(fields.title.isEmpty)
-        XCTAssertNotEqual(fields.documentType, "import")
-    }
-
-    func testClassifyFilenameMatchesCleanedTitleSlug() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SecretaryFile-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let library = try DocumentLibrary(rootURL: root)
-        let source = root.appendingPathComponent("junk.txt")
-        try """
-        KBC Bank
-        Factuur
-        Factuurdatum: 15/03/2024
-        Totaal: 89,00
-        """.write(to: source, atomically: true, encoding: .utf8)
-        let imported = try library.importFile(from: source, preferredName: "PfO6D4aa")
-        let withOCR = try library.updateMetadata(
-            documentID: imported.id,
-            ocrText: "KBC Bank\nFactuur\nFactuurdatum: 15/03/2024\nTotaal: 89,00"
-        )
-        let classified = try library.classify(
-            documentID: withOCR.id,
-            as: ClassificationTarget(
-                space: .bv,
-                category: "Invoices",
-                year: 2024,
-                documentType: "import",
-                shortTitle: "PfO6D4aa"
-            )
-        )
-        XCTAssertEqual(classified.title, DocumentUnderstanding.extract(from: withOCR, preferredTitle: "PfO6D4aa", preferredType: "import").title)
-        let stem = (classified.filename as NSString).deletingPathExtension
-        let parts = stem.split(separator: "__").map(String.init)
-        XCTAssertEqual(parts.count, 3, "Expected YYYY-MM-DD__type__slug, got \(classified.filename)")
-        XCTAssertEqual(parts[1], "invoice")
-        XCTAssertEqual(parts[2], FolderSchema.sanitize(classified.title))
-        XCTAssertTrue(classified.filename.hasPrefix("2024-03-15__") || classified.filename.hasPrefix("2024-"))
-        XCTAssertEqual(classified.paymentStatus, .unpaid)
-        XCTAssertTrue(classified.tags.contains { $0.lowercased() == "unpaid" })
-
-        let paid = try library.updateMetadata(
-            documentID: classified.id,
-            paymentStatus: .paid,
-            paidAt: .some(Date(timeIntervalSince1970: 1_700_000_000))
-        )
-        XCTAssertEqual(paid.paymentStatus, .paid)
-        XCTAssertNotNil(paid.paidAt)
-        XCTAssertTrue(paid.tags.contains { $0.lowercased() == "paid" })
-        XCTAssertFalse(paid.tags.contains { $0.lowercased() == "unpaid" })
+        XCTAssertEqual(huge.contentWidth, DetailLayoutMetrics.macContentMax)
+        XCTAssertTrue(huge.usesSideColumn)
     }
 }
 

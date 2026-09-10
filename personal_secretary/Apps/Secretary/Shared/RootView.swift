@@ -50,14 +50,14 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(
                     min: 200,
                     ideal: SecretaryTheme.sidebarWidth,
-                    max: 260
+                    max: SecretaryTheme.sidebarWidthMax
                 )
         } content: {
             DocumentListView(selectedDocumentID: $selectedDocumentID)
                 .navigationSplitViewColumnWidth(
                     min: 260,
                     ideal: SecretaryTheme.listWidth,
-                    max: 400
+                    max: SecretaryTheme.listWidthMax
                 )
                 .id(selectedDestination)
         } detail: {
