@@ -51,11 +51,6 @@ enum SecretaryTheme {
     static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.macSidebarMax
     static let listWidthMax: CGFloat = DetailLayoutMetrics.macListMax
     static let detailContentMax: CGFloat = DetailLayoutMetrics.macContentMax
-    #else
-    static let listWidth: CGFloat = 320
-    /// Readable form width on iOS stacked detail.
-    static let detailContentMax: CGFloat = 680
-    #if os(macOS)
     /// When the detail pane is at least this wide, metadata sits left and preview fills the rest.
     static let detailSplitMinWidth: CGFloat = 640
     static let detailMetaMinWidth: CGFloat = 320
@@ -64,17 +59,7 @@ enum SecretaryTheme {
     static let previewIdealHeight: CGFloat = 520
     static let previewMaxHeight: CGFloat = 920
     static let previewHeightRatio: CGFloat = 0.55
-    #else
-    static let previewMinHeight: CGFloat = 220
-    static let previewIdealHeight: CGFloat = 260
-    static let previewMaxHeight: CGFloat = 320
-    #endif
-    static let windowMinWidth: CGFloat = 1100
-    static let windowMinHeight: CGFloat = 640
-    static let windowDefaultWidth: CGFloat = 1440
-    static let windowDefaultHeight: CGFloat = 860
 
-    #if os(macOS)
     static func metaColumnWidth(for detailWidth: CGFloat) -> CGFloat {
         min(detailMetaMaxWidth, max(detailMetaMinWidth, detailWidth * 0.36))
     }
@@ -83,7 +68,19 @@ enum SecretaryTheme {
         let proposed = viewportHeight * previewHeightRatio
         return min(previewMaxHeight, max(previewMinHeight, proposed))
     }
+    #else
+    static let listWidth: CGFloat = 320
+    static let sidebarWidthMax: CGFloat = DetailLayoutMetrics.iosSidebarMax
+    static let listWidthMax: CGFloat = DetailLayoutMetrics.iosListMax
+    static let detailContentMax: CGFloat = DetailLayoutMetrics.iosContentMax
+    static let previewMinHeight: CGFloat = 220
+    static let previewIdealHeight: CGFloat = 260
+    static let previewMaxHeight: CGFloat = 320
     #endif
+    static let windowMinWidth: CGFloat = 1100
+    static let windowMinHeight: CGFloat = 640
+    static let windowDefaultWidth: CGFloat = 1440
+    static let windowDefaultHeight: CGFloat = 860
 }
 
 // MARK: - Typography
